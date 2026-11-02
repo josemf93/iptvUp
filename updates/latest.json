@@ -2,7 +2,7 @@
   "versionCode": 2,
   "versionName": "0.2.0",
   "apkUrl": "https://github.com/josemf93/iptvUp/releases/download/v0.2.0/IptvUp-v0.2.0.apk",
-  "sha256": "",
+  "sha256": "728c9aa32735dc5f812a9c9c2aea087c3465ce905ba4b60622a1d8325267d015",
   "minSupportedVersionCode": 1,
   "notes": "Primera versión firmada: perfiles M3U/Xtream, EPG con filtros y buscador, calidades separadas e historial de canales."
 }
