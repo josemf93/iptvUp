@@ -17,6 +17,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.flow.first
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.BufferedInputStream
@@ -42,6 +43,7 @@ class PlaylistRepository @Inject constructor(
     suspend fun sync(
         profile: IptvProfile,
         credentials: ProfileCredentials,
+        hiddenGroups: Set<String> = emptySet(),
         onStatus: (String) -> Unit = {}
     ): Result<Unit> = withContext(Dispatchers.IO) {
         try {
@@ -64,7 +66,7 @@ class PlaylistRepository @Inject constructor(
                     profileDao.updateEpgUrl(profile.id, discoveredEpg)
                 }
                 try {
-                    syncEpg(profile, epgUrl, onStatus)
+                    syncEpg(profile, epgUrl, hiddenGroups, onStatus)
                 } catch (exception: CancellationException) {
                     throw exception
                 } catch (exception: Exception) {
@@ -162,11 +164,18 @@ class PlaylistRepository @Inject constructor(
     private suspend fun syncEpg(
         profile: IptvProfile,
         epgUrl: String,
+        hiddenGroups: Set<String>,
         onStatus: (String) -> Unit
     ) {
-        val epgIds = channelDao.epgChannelIds(profile.id).toSet()
+        val epgIds = channelDao.observeAll(profile.id).first()
+            .asSequence()
+            .filter { it.groupName !in hiddenGroups }
+            .mapNotNull { channel ->
+                channel.epgChannelId?.takeIf { it.isNotBlank() }
+            }
+            .toSet()
         if (epgIds.isEmpty()) {
-            onStatus("Los canales no tienen id de EPG")
+            onStatus("Los canales visibles no tienen id de EPG")
             return
         }
         onStatus("Descargando EPG...")

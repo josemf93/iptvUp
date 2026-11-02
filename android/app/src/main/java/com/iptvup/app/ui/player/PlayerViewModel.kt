@@ -96,14 +96,10 @@ class PlayerViewModel @Inject constructor(
                 .filter { it.kind == HiddenRepository.KIND_GROUP }
                 .map { it.itemKey }
                 .toSet()
-            val hiddenChannels = hiddenItems
-                .filter { it.kind == HiddenRepository.KIND_CHANNEL }
-                .map { it.itemKey }
-                .toSet()
             val groupChannels = channelDao
                 .getForGroup(current.profileId, current.groupName)
                 .filter {
-                    it.groupName !in hiddenGroups && it.channelKey !in hiddenChannels
+                    it.groupName !in hiddenGroups
                 }
             if (groupChannels.size <= 1) return@launch
             val currentIndex = groupChannels.indexOfFirst { it.id == current.id }

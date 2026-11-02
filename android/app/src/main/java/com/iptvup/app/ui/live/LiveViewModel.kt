@@ -116,6 +116,14 @@ class LiveViewModel @Inject constructor(
         initialValue = emptyList()
     )
 
+    val groupCounts = channelDao.observeAll(profileId)
+        .map { all -> all.groupBy { it.groupName }.mapValues { it.value.size } }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = emptyMap()
+        )
+
     private val filters = combine(query, selectedGroup) { text, group ->
         text to group
     }
@@ -134,13 +142,8 @@ class LiveViewModel @Inject constructor(
             .filter { it.kind == HiddenRepository.KIND_GROUP }
             .map { it.itemKey }
             .toSet()
-        val hiddenChannels = hiddenItems
-            .filter { it.kind == HiddenRepository.KIND_CHANNEL }
-            .map { it.itemKey }
-            .toSet()
         all.asSequence()
             .filter { it.groupName !in hiddenGroups }
-            .filter { it.channelKey !in hiddenChannels }
             .filter { group == null || it.groupName == group }
             .filter {
                 text.isBlank() ||
@@ -168,7 +171,7 @@ class LiveViewModel @Inject constructor(
         }
         viewModelScope.launch {
             if (channelDao.count(profileId) == 0) {
-                syncManager.sync(profileId)
+                syncManager.sync(profileId, force = true)
             }
         }
         viewModelScope.launch {
@@ -200,12 +203,6 @@ class LiveViewModel @Inject constructor(
         }
     }
 
-    fun toggleChannelHidden(channel: ChannelEntity) {
-        viewModelScope.launch {
-            hiddenRepository.toggleChannel(profileId, channel.channelKey)
-        }
-    }
-
     fun toggleGroupHidden(group: String) {
         if (_selectedGroup.value == group) {
             _selectedGroup.value = null
@@ -216,7 +213,7 @@ class LiveViewModel @Inject constructor(
     }
 
     fun sync() {
-        syncManager.sync(profileId)
+        syncManager.sync(profileId, force = true)
     }
 
     fun dismissError() {

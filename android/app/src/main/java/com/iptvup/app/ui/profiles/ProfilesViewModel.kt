@@ -5,6 +5,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.iptvup.app.core.settings.SettingsStore
 import com.iptvup.app.data.model.IptvProfile
 import com.iptvup.app.data.repository.AuthRepository
 import com.iptvup.app.data.repository.ProfileRepository
@@ -19,7 +20,8 @@ import javax.inject.Inject
 class ProfilesViewModel @Inject constructor(
     private val profileRepository: ProfileRepository,
     private val syncManager: SyncManager,
-    private val authRepository: AuthRepository
+    private val authRepository: AuthRepository,
+    private val settings: SettingsStore
 ) : ViewModel() {
 
     val profiles = profileRepository.profiles.stateIn(
@@ -28,13 +30,13 @@ class ProfilesViewModel @Inject constructor(
         initialValue = emptyList()
     )
 
-    var busy by mutableStateOf(false)
-        private set
-    var status by mutableStateOf("")
-        private set
+    val profileIcons = settings.profileIcons.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = emptyMap()
+    )
+
     var error by mutableStateOf<String?>(null)
-        private set
-    var pendingProfile by mutableStateOf<IptvProfile?>(null)
         private set
     var navigateTo by mutableStateOf<String?>(null)
         private set
@@ -45,6 +47,7 @@ class ProfilesViewModel @Inject constructor(
 
     fun refresh() {
         viewModelScope.launch {
+            error = null
             runCatching { profileRepository.refreshProfiles() }
                 .onFailure {
                     error = "No se pudieron cargar los perfiles: ${it.message ?: "error de red"}"
@@ -56,32 +59,20 @@ class ProfilesViewModel @Inject constructor(
         viewModelScope.launch {
             error = null
             profileRepository.selectProfile(profile.id)
-            // Entra inmediatamente: la descarga sigue en segundo plano.
+            // Entra inmediatamente: si toca actualizar, sigue en segundo plano.
             syncManager.sync(profile.id)
             navigateTo = profile.id
         }
     }
 
-    fun enterCached() {
-        val profile = pendingProfile ?: return
-        pendingProfile = null
-        error = null
-        navigateTo = profile.id
-    }
-
-    fun retry() {
-        val profile = pendingProfile
-        if (profile != null) {
-            open(profile)
-        } else {
-            error = null
-            refresh()
+    fun setProfileIcon(profileId: String, iconKey: String) {
+        viewModelScope.launch {
+            settings.setProfileIcon(profileId, iconKey)
         }
     }
 
     fun dismissError() {
         error = null
-        pendingProfile = null
     }
 
     fun consumeNavigation() {
@@ -91,6 +82,7 @@ class ProfilesViewModel @Inject constructor(
     fun delete(profile: IptvProfile) {
         viewModelScope.launch {
             runCatching { profileRepository.deleteProfile(profile) }
+                .onSuccess { settings.clearProfileIcon(profile.id) }
                 .onFailure {
                     error = "No se pudo borrar el perfil: ${it.message ?: "error"}"
                 }

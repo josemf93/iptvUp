@@ -37,14 +37,9 @@ class FavoritesViewModel @Inject constructor(
             .filter { it.kind == HiddenRepository.KIND_GROUP }
             .map { it.itemKey }
             .toSet()
-        val hiddenChannels = hiddenItems
-            .filter { it.kind == HiddenRepository.KIND_CHANNEL }
-            .map { it.itemKey }
-            .toSet()
         all.filter {
             it.channelKey in favoriteKeys &&
-                it.groupName !in hiddenGroups &&
-                it.channelKey !in hiddenChannels
+                it.groupName !in hiddenGroups
         }
     }.stateIn(
         scope = viewModelScope,

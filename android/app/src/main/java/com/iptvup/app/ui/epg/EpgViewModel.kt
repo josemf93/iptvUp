@@ -134,16 +134,11 @@ class EpgViewModel @Inject constructor(
             .filter { it.kind == HiddenRepository.KIND_GROUP }
             .map { it.itemKey }
             .toSet()
-        val hiddenChannels = hiddenItems
-            .filter { it.kind == HiddenRepository.KIND_CHANNEL }
-            .map { it.itemKey }
-            .toSet()
         val byEpgId = programs.groupBy { it.epgChannelId }
         val now = System.currentTimeMillis()
         val visibleChannels = channels
             .asSequence()
             .filter { it.groupName !in hiddenGroups }
-            .filter { it.channelKey !in hiddenChannels }
             .filter { selectedGroup == null || it.groupName == selectedGroup }
             .filter {
                 query.isBlank() ||
@@ -231,7 +226,7 @@ class EpgViewModel @Inject constructor(
     }
 
     fun sync() {
-        syncManager.sync(profileId)
+        syncManager.sync(profileId, force = true)
     }
 
     fun dismissError() {

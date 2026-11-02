@@ -12,12 +12,17 @@ Reproductor IPTV privado para **Android** y **Android TV**, con perfiles sincron
 
 - Login con email y contraseña (Firebase Auth).
 - Perfiles IPTV en la nube: **M3U** o **Xtream Codes**.
-- Lista de canales por grupos, búsqueda, favoritos y ocultación de grupos/canales.
+- Lista de canales por grupos, búsqueda, favoritos y ocultación de grupos.
+- **Iconos de perfil personalizables**: toca el avatar de cada lista para elegir entre varios iconos.
+- En **Android TV**, la pestaña TV muestra primero los grupos como tarjetas con icono; al entrar en un grupo aparece su lista de canales con botón de volver.
+- **Sincronización diaria**: al entrar en un perfil usa la caché y solo descarga lista/EPG si han pasado 24 horas o si pulsas actualizar.
+- **EPG solo de grupos visibles**: no se guardan programas de grupos ocultos.
 - **Deduplicación de canales**: elimina repetidos de la misma calidad y conserva 4K/FHD/HD/SD como entradas separadas, con su etiqueta visible.
 - Reproductor **Media3/ExoPlayer** para HLS y TS.
 - **Guía EPG** (XMLTV) con ahora/después, parrilla temporal en móvil, lista adaptada a TV, buscador de canales y el mismo gestor multi-grupo que TV.
 - Pantalla de inicio con **historial de los últimos 10 canales abiertos**.
 - Edición completa de perfiles (nombre, tipo, credenciales y EPG).
+- **Ajustes globales** desde la selección de perfiles: actualizaciones y acerca de.
 - **Picture-in-Picture** y **Chromecast** en móvil (el botón de Cast usa el receptor multimedia por defecto de Google).
 - **Gestos en el reproductor**: desliza en horizontal para cambiar de canal, en vertical derecho para el volumen y en vertical izquierdo para el brillo. En TV, D-pad izquierda/derecha cambia de canal.
 - **Guía EPG ampliable** dentro del reproductor, sin salir de la reproducción.
@@ -207,8 +212,8 @@ Para Android TV también puedes copiar el APK con la app **Downloader** o por AD
 1. Abre la app e inicia sesión con un usuario creado en el panel.
 2. Pulsa **Añadir perfil**.
 3. Elige M3U o Xtream Codes, rellena los datos y guarda.
-4. Abre el perfil: entra al instante con los datos en caché y la lista/EPG se actualiza en segundo plano.
-5. En **Ajustes** puedes forzar la actualización de la lista/EPG.
+4. Abre el perfil: entra al instante con los datos en caché y, si ha pasado más de un día, la lista/EPG se actualiza en segundo plano.
+5. En **Ajustes** puedes forzar la actualización de la lista/EPG en cualquier momento.
 
 > La creación del perfil pasa por la API del panel (`/api/profiles`), porque es la que cifra las credenciales. Si la API no está accesible, el alta fallará.
 
@@ -328,8 +333,8 @@ npm run set-admin -- admin@test.com
 
 ## 7. Limitaciones actuales / siguientes pasos
 
-- EPG de respaldo para canales españoles sin `tvg-id`: emparejamiento por nombre con una fuente XMLTV externa (por ejemplo TDTChannels).
-- EPG en parrilla temporal también en TV (ahora TV usa lista con ahora/después).
+- EPG de respaldo para canales españoles sin `tvg-id`: emparejamiento por nombre con una fuente XMLTV externa (por ejemplo TDTChannels). La app ya omite los grupos ocultos al guardar la EPG.
+- EPG en parrilla temporal también en TV (ahora TV usa la lista de grupos → canales con ahora/después).
 - Chromecast con receptor propio para streams TS; el receptor por defecto funciona mejor con HLS/DASH.
 - Previsualización en vídeo (mini-player) dentro de la lista de canales de TV.
 - La deduplicación agrupa por canal + calidad; si un proveedor usa el mismo `tvg-id` para feeds distintos de la misma calidad, se queda uno. Las calidades distintas se conservan.

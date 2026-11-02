@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -166,11 +167,32 @@ interface HiddenDao {
     )
     suspend fun exists(profileId: String, kind: String, itemKey: String): Boolean
 
+    @Query("SELECT itemKey FROM hidden_items WHERE profileId = :profileId AND kind = :kind")
+    suspend fun keys(profileId: String, kind: String): List<String>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(entity: HiddenItemEntity)
 
     @Query("DELETE FROM hidden_items WHERE profileId = :profileId AND kind = :kind AND itemKey = :itemKey")
     suspend fun delete(profileId: String, kind: String, itemKey: String)
+
+    @Query("DELETE FROM hidden_items WHERE profileId = :profileId AND kind = :kind")
+    suspend fun deleteByKind(profileId: String, kind: String)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(items: List<HiddenItemEntity>)
+
+    @Transaction
+    suspend fun replaceKind(
+        profileId: String,
+        kind: String,
+        items: List<HiddenItemEntity>
+    ) {
+        deleteByKind(profileId, kind)
+        if (items.isNotEmpty()) {
+            insertAll(items)
+        }
+    }
 
     @Query("DELETE FROM hidden_items WHERE profileId = :profileId")
     suspend fun deleteByProfile(profileId: String)

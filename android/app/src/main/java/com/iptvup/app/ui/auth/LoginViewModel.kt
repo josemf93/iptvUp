@@ -23,12 +23,10 @@ class LoginViewModel @Inject constructor(
     var password by mutableStateOf("")
     var loading by mutableStateOf(false)
     var error by mutableStateOf<String?>(null)
-    var info by mutableStateOf<String?>(null)
 
     fun signIn() {
         if (loading) return
         error = null
-        info = null
         if (email.isBlank() || password.isBlank()) {
             error = "Introduce tu email y tu contraseña"
             return
@@ -36,22 +34,6 @@ class LoginViewModel @Inject constructor(
         viewModelScope.launch {
             loading = true
             authRepository.signIn(email, password)
-                .onFailure { error = messageFor(it) }
-            loading = false
-        }
-    }
-
-    fun resetPassword() {
-        error = null
-        info = null
-        if (email.isBlank()) {
-            error = "Escribe tu email para recuperar la contraseña"
-            return
-        }
-        viewModelScope.launch {
-            loading = true
-            authRepository.sendPasswordReset(email)
-                .onSuccess { info = "Te hemos enviado un email para restablecer la contraseña" }
                 .onFailure { error = messageFor(it) }
             loading = false
         }

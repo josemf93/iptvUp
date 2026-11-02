@@ -1,6 +1,8 @@
 package com.iptvup.app.ui.profiles
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,17 +25,25 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.Logout
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Cast
+import androidx.compose.material.icons.rounded.ChildCare
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Edit
-import androidx.compose.material.icons.rounded.Logout
+import androidx.compose.material.icons.rounded.LiveTv
+import androidx.compose.material.icons.rounded.Movie
+import androidx.compose.material.icons.rounded.MusicNote
+import androidx.compose.material.icons.rounded.Newspaper
 import androidx.compose.material.icons.rounded.Person
-import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.rounded.SportsEsports
+import androidx.compose.material.icons.rounded.SportsSoccer
+import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -45,6 +55,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -55,7 +66,6 @@ import com.iptvup.app.core.ui.components.BrandLogo
 import com.iptvup.app.core.ui.components.EmptyState
 import com.iptvup.app.core.ui.components.ErrorBanner
 import com.iptvup.app.core.ui.components.FocusableCard
-import com.iptvup.app.core.ui.components.LoadingOverlay
 import com.iptvup.app.core.ui.components.TypeBadge
 import com.iptvup.app.core.ui.theme.Danger
 import com.iptvup.app.core.ui.theme.Primary
@@ -64,6 +74,29 @@ import com.iptvup.app.core.ui.theme.TextPrimary
 import com.iptvup.app.core.ui.theme.TextSecondary
 import com.iptvup.app.core.ui.util.formatLastSync
 import com.iptvup.app.data.model.IptvProfile
+import com.iptvup.app.ui.settings.GlobalSettingsDialog
+
+private data class ProfileIconOption(
+    val key: String,
+    val label: String,
+    val icon: ImageVector
+)
+
+private val profileIconOptions = listOf(
+    ProfileIconOption("person", "Persona", Icons.Rounded.Person),
+    ProfileIconOption("tv", "TV", Icons.Rounded.LiveTv),
+    ProfileIconOption("movie", "Cine", Icons.Rounded.Movie),
+    ProfileIconOption("sports", "Deportes", Icons.Rounded.SportsSoccer),
+    ProfileIconOption("music", "Música", Icons.Rounded.MusicNote),
+    ProfileIconOption("news", "Noticias", Icons.Rounded.Newspaper),
+    ProfileIconOption("kids", "Infantil", Icons.Rounded.ChildCare),
+    ProfileIconOption("star", "Favoritos", Icons.Rounded.Star),
+    ProfileIconOption("games", "Juegos", Icons.Rounded.SportsEsports),
+    ProfileIconOption("cast", "Cast", Icons.Rounded.Cast)
+)
+
+private fun profileIconFor(key: String?): ImageVector =
+    profileIconOptions.firstOrNull { it.key == key }?.icon ?: Icons.Rounded.Person
 
 @Composable
 fun ProfilesScreen(
@@ -73,8 +106,11 @@ fun ProfilesScreen(
     viewModel: ProfilesViewModel = hiltViewModel()
 ) {
     var profileToDelete by remember { mutableStateOf<IptvProfile?>(null) }
+    var iconProfile by remember { mutableStateOf<IptvProfile?>(null) }
     var confirmLogout by remember { mutableStateOf(false) }
+    var showGlobalSettings by remember { mutableStateOf(false) }
     val profiles by viewModel.profiles.collectAsStateWithLifecycle()
+    val profileIcons by viewModel.profileIcons.collectAsStateWithLifecycle()
 
     LaunchedEffect(viewModel.navigateTo) {
         viewModel.navigateTo?.let { profileId ->
@@ -101,9 +137,16 @@ fun ProfilesScreen(
             ) {
                 BrandLogo()
                 Spacer(Modifier.weight(1f))
+                IconButton(onClick = { showGlobalSettings = true }) {
+                    Icon(
+                        imageVector = Icons.Rounded.Settings,
+                        contentDescription = "Ajustes",
+                        tint = TextSecondary
+                    )
+                }
                 IconButton(onClick = { confirmLogout = true }) {
                     Icon(
-                        imageVector = Icons.Rounded.Logout,
+                        imageVector = Icons.AutoMirrored.Rounded.Logout,
                         contentDescription = "Cerrar sesión",
                         tint = TextSecondary
                     )
@@ -129,13 +172,11 @@ fun ProfilesScreen(
                 )
                 Spacer(Modifier.height(18.dp))
                 viewModel.error?.let { message ->
-                    if (viewModel.pendingProfile == null) {
-                        ErrorBanner(
-                            message = message,
-                            onRetry = viewModel::retry
-                        )
-                        Spacer(Modifier.height(14.dp))
-                    }
+                    ErrorBanner(
+                        message = message,
+                        onRetry = viewModel::refresh
+                    )
+                    Spacer(Modifier.height(14.dp))
                 }
             }
 
@@ -206,7 +247,9 @@ fun ProfilesScreen(
                     items(profiles, key = { it.id }) { profile ->
                         ProfileCard(
                             profile = profile,
+                            icon = profileIconFor(profileIcons[profile.id]),
                             onOpen = { viewModel.open(profile) },
+                            onPickIcon = { iconProfile = profile },
                             onEdit = { onEditProfile(profile.id) },
                             onDelete = { profileToDelete = profile }
                         )
@@ -214,10 +257,69 @@ fun ProfilesScreen(
                 }
             }
         }
+    }
 
-        if (viewModel.busy) {
-            LoadingOverlay(message = viewModel.status.ifBlank { "Preparando..." })
-        }
+    iconProfile?.let { profile ->
+        val selectedKey = profileIcons[profile.id] ?: "person"
+        AlertDialog(
+            onDismissRequest = { iconProfile = null },
+            title = { Text("Icono del perfil") },
+            text = {
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(5),
+                    modifier = Modifier.height(190.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    items(profileIconOptions, key = { it.key }) { option ->
+                        val selected = option.key == selectedKey
+                        Box(
+                            modifier = Modifier
+                                .size(56.dp)
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(
+                                    if (selected) {
+                                        Primary.copy(alpha = 0.22f)
+                                    } else {
+                                        SurfaceElevated
+                                    }
+                                )
+                                .then(
+                                    if (selected) {
+                                        Modifier.border(
+                                            2.dp,
+                                            Primary,
+                                            RoundedCornerShape(16.dp)
+                                        )
+                                    } else {
+                                        Modifier
+                                    }
+                                )
+                                .clickable {
+                                    viewModel.setProfileIcon(profile.id, option.key)
+                                    iconProfile = null
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = option.icon,
+                                contentDescription = option.label,
+                                tint = if (selected) Primary else TextSecondary
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { iconProfile = null }) {
+                    Text("Cerrar")
+                }
+            }
+        )
+    }
+
+    if (showGlobalSettings) {
+        GlobalSettingsDialog(onDismiss = { showGlobalSettings = false })
     }
 
     profileToDelete?.let { profile ->
@@ -270,41 +372,14 @@ fun ProfilesScreen(
             }
         )
     }
-
-    val failedProfile = viewModel.pendingProfile
-    if (viewModel.error != null && failedProfile != null) {
-        AlertDialog(
-            onDismissRequest = viewModel::dismissError,
-            title = { Text("No se pudo actualizar") },
-            text = {
-                Text(
-                    "${viewModel.error}\n\nPuedes entrar con los canales que ya estén " +
-                        "guardados en este dispositivo o volver a intentarlo."
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = viewModel::retry) {
-                    Text("Reintentar")
-                }
-            },
-            dismissButton = {
-                Row {
-                    TextButton(onClick = viewModel::dismissError) {
-                        Text("Cancelar")
-                    }
-                    TextButton(onClick = viewModel::enterCached) {
-                        Text("Entrar igualmente", color = Primary)
-                    }
-                }
-            }
-        )
-    }
 }
 
 @Composable
 private fun ProfileCard(
     profile: IptvProfile,
+    icon: ImageVector,
     onOpen: () -> Unit,
+    onPickIcon: () -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
@@ -318,12 +393,13 @@ private fun ProfileCard(
                     modifier = Modifier
                         .size(48.dp)
                         .clip(RoundedCornerShape(14.dp))
-                        .background(SurfaceElevated),
+                        .background(SurfaceElevated)
+                        .clickable(onClick = onPickIcon),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.Person,
-                        contentDescription = null,
+                        imageVector = icon,
+                        contentDescription = "Cambiar icono del perfil",
                         tint = Primary
                     )
                 }
@@ -361,19 +437,6 @@ private fun ProfileCard(
                 color = TextSecondary,
                 style = MaterialTheme.typography.bodySmall
             )
-            Spacer(Modifier.height(14.dp))
-            OutlinedButton(
-                onClick = onOpen,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.PlayArrow,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp)
-                )
-                Spacer(Modifier.width(8.dp))
-                Text("Abrir perfil")
-            }
         }
     }
 }

@@ -1,5 +1,6 @@
 package com.iptvup.app.data.sync
 
+import com.iptvup.app.data.repository.HiddenRepository
 import com.iptvup.app.data.repository.PlaylistRepository
 import com.iptvup.app.data.repository.ProfileRepository
 import kotlinx.coroutines.CancellationException
@@ -24,7 +25,8 @@ sealed interface SyncState {
 @Singleton
 class SyncManager @Inject constructor(
     private val profileRepository: ProfileRepository,
-    private val playlistRepository: PlaylistRepository
+    private val playlistRepository: PlaylistRepository,
+    private val hiddenRepository: HiddenRepository
 ) {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -34,7 +36,7 @@ class SyncManager @Inject constructor(
     private var job: Job? = null
     private var activeProfileId: String? = null
 
-    fun sync(profileId: String) {
+    fun sync(profileId: String, force: Boolean = false) {
         if (job?.isActive == true && activeProfileId == profileId) return
 
         job?.cancel()
@@ -46,10 +48,25 @@ class SyncManager @Inject constructor(
                 return@launch
             }
 
+            val lastSync = profile.lastSyncedAt
+            if (!force && lastSync != null &&
+                System.currentTimeMillis() - lastSync < DAY_MS
+            ) {
+                // Ya se actualizó hoy: se usa la caché y no se vuelve a descargar.
+                _state.value = SyncState.Idle
+                return@launch
+            }
+
             _state.value = SyncState.Running(profileId, "Preparando...")
             try {
                 val credentials = profileRepository.getCredentials(profile)
-                playlistRepository.sync(profile, credentials) { status ->
+                runCatching { hiddenRepository.refresh(profileId) }
+                val hiddenGroups = hiddenRepository.getHiddenGroups(profileId)
+                playlistRepository.sync(
+                    profile = profile,
+                    credentials = credentials,
+                    hiddenGroups = hiddenGroups
+                ) { status ->
                     _state.value = SyncState.Running(profileId, status)
                 }.onSuccess {
                     _state.value = SyncState.Success(profileId, System.currentTimeMillis())
@@ -75,5 +92,9 @@ class SyncManager @Inject constructor(
         if (current is SyncState.Error && current.profileId == profileId) {
             _state.value = SyncState.Idle
         }
+    }
+
+    private companion object {
+        const val DAY_MS = 24 * 60 * 60 * 1000L
     }
 }

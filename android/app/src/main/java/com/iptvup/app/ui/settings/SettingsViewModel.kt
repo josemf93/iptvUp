@@ -83,7 +83,7 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun sync() {
-        syncManager.sync(profileId)
+        syncManager.sync(profileId, force = true)
     }
 
     fun checkUpdates() {

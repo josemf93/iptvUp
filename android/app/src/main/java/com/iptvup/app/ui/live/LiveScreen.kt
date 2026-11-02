@@ -6,6 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -17,15 +18,25 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.ChildCare
 import androidx.compose.material.icons.rounded.Clear
+import androidx.compose.material.icons.rounded.LiveTv
+import androidx.compose.material.icons.rounded.Movie
+import androidx.compose.material.icons.rounded.MusicNote
+import androidx.compose.material.icons.rounded.Newspaper
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.SportsEsports
+import androidx.compose.material.icons.rounded.SportsSoccer
 import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material.icons.rounded.StarBorder
 import androidx.compose.material.icons.rounded.Tune
-import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
@@ -35,43 +46,40 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.SnackbarDuration
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.activity.compose.BackHandler
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.iptvup.app.core.ui.components.ChannelLogo
 import com.iptvup.app.core.ui.components.EmptyState
 import com.iptvup.app.core.ui.components.ErrorBanner
+import com.iptvup.app.core.ui.components.FocusableCard
 import com.iptvup.app.core.ui.components.GroupVisibilityDialog
 import com.iptvup.app.core.ui.components.NowNextText
 import com.iptvup.app.core.ui.components.QualityBadge
 import com.iptvup.app.core.ui.theme.Accent
-import com.iptvup.app.core.ui.theme.Danger
 import com.iptvup.app.core.ui.theme.Primary
 import com.iptvup.app.core.ui.theme.SurfaceDark
 import com.iptvup.app.core.ui.theme.SurfaceElevated
 import com.iptvup.app.core.ui.theme.TextPrimary
 import com.iptvup.app.core.ui.theme.TextSecondary
 import com.iptvup.app.core.ui.util.formatTime
+import com.iptvup.app.core.ui.util.isTelevision
 import com.iptvup.app.core.ui.util.progressFraction
 import com.iptvup.app.data.repository.HiddenRepository
-import kotlinx.coroutines.launch
 
 @Composable
 fun LiveScreen(
@@ -81,6 +89,7 @@ fun LiveScreen(
     val channels by viewModel.channels.collectAsStateWithLifecycle()
     val groups by viewModel.groups.collectAsStateWithLifecycle()
     val allGroups by viewModel.allGroups.collectAsStateWithLifecycle()
+    val groupCounts by viewModel.groupCounts.collectAsStateWithLifecycle()
     val hidden by viewModel.hidden.collectAsStateWithLifecycle()
     val query by viewModel.query.collectAsStateWithLifecycle()
     val selectedGroup by viewModel.selectedGroup.collectAsStateWithLifecycle()
@@ -89,14 +98,30 @@ fun LiveScreen(
     val error by viewModel.error.collectAsStateWithLifecycle()
 
     var showGroupsDialog by remember { mutableStateOf(false) }
-    val snackbarHostState = remember { SnackbarHostState() }
-    val scope = rememberCoroutineScope()
+    val isTv = isTelevision()
 
     val hiddenGroups = remember(hidden) {
         hidden.filter { it.kind == HiddenRepository.KIND_GROUP }
             .map { it.itemKey }
             .toSet()
     }
+    val visibleGroups = remember(groups, query) {
+        if (query.isBlank()) {
+            groups
+        } else {
+            groups.filter { it.contains(query, ignoreCase = true) }
+        }
+    }
+
+    BackHandler(enabled = isTv && selectedGroup != null) {
+        viewModel.setQuery("")
+        viewModel.selectGroup(null)
+    }
+
+    val showingGroupBrowser = isTv && selectedGroup == null
+    val filtersActive = query.isNotBlank() ||
+        (!isTv && selectedGroup != null) ||
+        (isTv && selectedGroup != null)
 
     Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -110,7 +135,11 @@ fun LiveScreen(
                             fontWeight = FontWeight.Bold
                         )
                         Text(
-                            text = "${channels.size} canales visibles",
+                            text = if (showingGroupBrowser) {
+                                "${groups.size} grupos · ${channels.size} canales"
+                            } else {
+                                "${channels.size} canales visibles"
+                            },
                             color = TextSecondary,
                             style = MaterialTheme.typography.bodySmall
                         )
@@ -140,76 +169,110 @@ fun LiveScreen(
                     }
                 }
 
-                Spacer(Modifier.height(12.dp))
-                OutlinedTextField(
-                    value = query,
-                    onValueChange = viewModel::setQuery,
-                    modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text("Buscar canal o grupo") },
-                    leadingIcon = {
-                        Icon(Icons.Rounded.Search, contentDescription = null)
-                    },
-                    trailingIcon = {
-                        if (query.isNotEmpty()) {
-                            IconButton(onClick = { viewModel.setQuery("") }) {
-                                Icon(Icons.Rounded.Clear, contentDescription = "Limpiar")
-                            }
-                        }
-                    },
-                    singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedContainerColor = SurfaceDark,
-                        unfocusedContainerColor = SurfaceDark,
-                        focusedBorderColor = Primary,
-                        unfocusedBorderColor = TextSecondary.copy(alpha = 0.25f),
-                        focusedTextColor = TextPrimary,
-                        unfocusedTextColor = TextPrimary,
-                        cursorColor = Primary
-                    )
-                )
-
-                Spacer(Modifier.height(10.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    LazyRow(
-                        modifier = Modifier.weight(1f),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        item {
-                            FilterChip(
-                                selected = selectedGroup == null,
-                                onClick = { viewModel.selectGroup(null) },
-                                label = { Text("Todos") }
-                            )
-                        }
-                        items(groups, key = { it }) { group ->
-                            FilterChip(
-                                selected = selectedGroup == group,
-                                onClick = { viewModel.selectGroup(group) },
-                                label = {
-                                    Text(
-                                        text = group,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                }
-                            )
-                        }
-                    }
-                    IconButton(onClick = { showGroupsDialog = true }) {
-                        Icon(
-                            imageVector = Icons.Rounded.Tune,
-                            contentDescription = "Gestionar grupos",
-                            tint = TextSecondary
-                        )
-                    }
-                }
-
                 error?.let { message ->
                     Spacer(Modifier.height(10.dp))
                     ErrorBanner(
                         message = message,
                         onRetry = viewModel::sync
                     )
+                }
+
+                if (isTv && selectedGroup != null) {
+                    Spacer(Modifier.height(8.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(
+                            onClick = {
+                                viewModel.setQuery("")
+                                viewModel.selectGroup(null)
+                            }
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                                contentDescription = "Volver a grupos",
+                                tint = TextSecondary
+                            )
+                        }
+                        Text(
+                            text = selectedGroup.orEmpty(),
+                            color = TextPrimary,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
+                        )
+                        IconButton(onClick = { showGroupsDialog = true }) {
+                            Icon(
+                                imageVector = Icons.Rounded.Tune,
+                                contentDescription = "Gestionar grupos",
+                                tint = TextSecondary
+                            )
+                        }
+                    }
+                }
+
+                Spacer(Modifier.height(10.dp))
+                ChannelSearchField(
+                    query = query,
+                    onQueryChange = viewModel::setQuery
+                )
+
+                if (isTv && selectedGroup == null) {
+                    Spacer(Modifier.height(10.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = "Grupos",
+                            color = TextPrimary,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.weight(1f)
+                        )
+                        IconButton(onClick = { showGroupsDialog = true }) {
+                            Icon(
+                                imageVector = Icons.Rounded.Tune,
+                                contentDescription = "Gestionar grupos",
+                                tint = TextSecondary
+                            )
+                        }
+                    }
+                }
+
+                if (!isTv) {
+                    Spacer(Modifier.height(10.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        LazyRow(
+                            modifier = Modifier.weight(1f),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            item {
+                                FilterChip(
+                                    selected = selectedGroup == null,
+                                    onClick = { viewModel.selectGroup(null) },
+                                    label = { Text("Todos") }
+                                )
+                            }
+                            items(groups, key = { it }) { group ->
+                                FilterChip(
+                                    selected = selectedGroup == group,
+                                    onClick = { viewModel.selectGroup(group) },
+                                    label = {
+                                        Text(
+                                            text = group,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+                                )
+                            }
+                        }
+                        IconButton(onClick = { showGroupsDialog = true }) {
+                            Icon(
+                                imageVector = Icons.Rounded.Tune,
+                                contentDescription = "Gestionar grupos",
+                                tint = TextSecondary
+                            )
+                        }
+                    }
                 }
             }
 
@@ -224,7 +287,46 @@ fun LiveScreen(
                 )
             }
 
-            if (channels.isEmpty() && !syncing) {
+            if (showingGroupBrowser) {
+                if (visibleGroups.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(24.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        EmptyState(
+                            title = if (query.isBlank()) "No hay grupos" else "Sin resultados",
+                            message = if (query.isBlank()) {
+                                "Actualiza la lista para descargar los canales del perfil."
+                            } else {
+                                "Prueba con otro nombre de grupo."
+                            },
+                            actionLabel = if (query.isBlank()) {
+                                "Actualizar lista"
+                            } else {
+                                "Quitar búsqueda"
+                            },
+                            onAction = {
+                                if (query.isBlank()) {
+                                    viewModel.sync()
+                                } else {
+                                    viewModel.setQuery("")
+                                }
+                            }
+                        )
+                    }
+                } else {
+                    TvGroupGrid(
+                        groups = visibleGroups,
+                        counts = groupCounts,
+                        onSelect = { group ->
+                            viewModel.setQuery("")
+                            viewModel.selectGroup(group)
+                        }
+                    )
+                }
+            } else if (channels.isEmpty() && !syncing) {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -232,68 +334,39 @@ fun LiveScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     EmptyState(
-                        title = "No hay canales",
-                        message = if (query.isNotBlank() || selectedGroup != null) {
-                            "Prueba con otra búsqueda o quita el filtro de grupo."
+                        title = if (filtersActive) "Sin resultados" else "No hay canales",
+                        message = if (filtersActive) {
+                            "Prueba con otra búsqueda o cambia el filtro de grupo."
                         } else {
                             "Actualiza la lista para descargar los canales del perfil."
                         },
-                        actionLabel = if (query.isNotBlank() || selectedGroup != null) {
-                            "Quitar filtros"
-                        } else {
-                            "Actualizar lista"
+                        actionLabel = when {
+                            query.isNotBlank() -> "Quitar búsqueda"
+                            isTv && selectedGroup != null -> "Volver a grupos"
+                            filtersActive -> "Quitar filtros"
+                            else -> "Actualizar lista"
                         },
                         onAction = {
-                            if (query.isNotBlank() || selectedGroup != null) {
-                                viewModel.setQuery("")
-                                viewModel.selectGroup(null)
-                            } else {
-                                viewModel.sync()
+                            when {
+                                query.isNotBlank() -> viewModel.setQuery("")
+                                isTv && selectedGroup != null -> viewModel.selectGroup(null)
+                                filtersActive -> {
+                                    viewModel.setQuery("")
+                                    viewModel.selectGroup(null)
+                                }
+                                else -> viewModel.sync()
                             }
                         }
                     )
                 }
             } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                        start = 16.dp,
-                        end = 16.dp,
-                        top = 10.dp,
-                        bottom = 24.dp
-                    ),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(channels, key = { it.channel.id }) { item ->
-                        ChannelRow(
-                            item = item,
-                            onPlay = { onPlay(item.channel.id) },
-                            onFavorite = { viewModel.toggleFavorite(item.channel) },
-                            onHide = {
-                                viewModel.toggleChannelHidden(item.channel)
-                                scope.launch {
-                                    val result = snackbarHostState.showSnackbar(
-                                        message = "Canal oculto: ${item.channel.name}",
-                                        actionLabel = "Deshacer",
-                                        duration = SnackbarDuration.Short
-                                    )
-                                    if (result == SnackbarResult.ActionPerformed) {
-                                        viewModel.toggleChannelHidden(item.channel)
-                                    }
-                                }
-                            }
-                        )
-                    }
-                }
+                ChannelList(
+                    channels = channels,
+                    onPlay = onPlay,
+                    onFavorite = { viewModel.toggleFavorite(it.channel) }
+                )
             }
         }
-
-        SnackbarHost(
-            hostState = snackbarHostState,
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(16.dp)
-        )
     }
 
     if (showGroupsDialog) {
@@ -309,11 +382,122 @@ fun LiveScreen(
 }
 
 @Composable
+private fun ChannelSearchField(
+    query: String,
+    onQueryChange: (String) -> Unit
+) {
+    OutlinedTextField(
+        value = query,
+        onValueChange = onQueryChange,
+        modifier = Modifier.fillMaxWidth(),
+        placeholder = { Text("Buscar canal o grupo") },
+        leadingIcon = {
+            Icon(Icons.Rounded.Search, contentDescription = null)
+        },
+        trailingIcon = {
+            if (query.isNotEmpty()) {
+                IconButton(onClick = { onQueryChange("") }) {
+                    Icon(Icons.Rounded.Clear, contentDescription = "Limpiar")
+                }
+            }
+        },
+        singleLine = true,
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedContainerColor = SurfaceDark,
+            unfocusedContainerColor = SurfaceDark,
+            focusedBorderColor = Primary,
+            unfocusedBorderColor = TextSecondary.copy(alpha = 0.25f),
+            focusedTextColor = TextPrimary,
+            unfocusedTextColor = TextPrimary,
+            cursorColor = Primary
+        )
+    )
+}
+
+@Composable
+private fun TvGroupGrid(
+    groups: List<String>,
+    counts: Map<String, Int>,
+    onSelect: (String) -> Unit
+) {
+    LazyVerticalGrid(
+        columns = GridCells.Adaptive(minSize = 220.dp),
+        contentPadding = PaddingValues(20.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        modifier = Modifier.fillMaxSize()
+    ) {
+        gridItems(groups, key = { it }) { group ->
+            FocusableCard(
+                onClick = { onSelect(group) },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(18.dp)) {
+                    Box(
+                        modifier = Modifier
+                            .size(52.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(Primary.copy(alpha = 0.16f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = groupIconFor(group),
+                            contentDescription = null,
+                            tint = Primary
+                        )
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        text = group,
+                        color = TextPrimary,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = "${counts[group] ?: 0} canales",
+                        color = TextSecondary,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ChannelList(
+    channels: List<LiveChannelUi>,
+    onPlay: (String) -> Unit,
+    onFavorite: (LiveChannelUi) -> Unit
+) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(
+            start = 16.dp,
+            end = 16.dp,
+            top = 10.dp,
+            bottom = 24.dp
+        ),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        items(channels, key = { it.channel.id }) { item ->
+            ChannelRow(
+                item = item,
+                onPlay = { onPlay(item.channel.id) },
+                onFavorite = { onFavorite(item) }
+            )
+        }
+    }
+}
+
+@Composable
 private fun ChannelRow(
     item: LiveChannelUi,
     onPlay: () -> Unit,
-    onFavorite: () -> Unit,
-    onHide: () -> Unit
+    onFavorite: () -> Unit
 ) {
     var focused by remember { mutableStateOf(false) }
     Row(
@@ -394,12 +578,24 @@ private fun ChannelRow(
                 tint = if (item.favorite) Accent else TextSecondary
             )
         }
-        IconButton(onClick = onHide) {
-            Icon(
-                imageVector = Icons.Rounded.VisibilityOff,
-                contentDescription = "Ocultar canal",
-                tint = TextSecondary
-            )
-        }
+    }
+}
+
+private fun groupIconFor(name: String): ImageVector {
+    val value = name.lowercase()
+    return when {
+        listOf("deporte", "sport", "futbol", "motor").any { it in value } ->
+            Icons.Rounded.SportsSoccer
+        listOf("cine", "pelic", "movie", "estreno").any { it in value } ->
+            Icons.Rounded.Movie
+        listOf("infantil", "kids", "nino", "dibujo").any { it in value } ->
+            Icons.Rounded.ChildCare
+        listOf("musica", "music").any { it in value } ->
+            Icons.Rounded.MusicNote
+        listOf("noticia", "news", "informa").any { it in value } ->
+            Icons.Rounded.Newspaper
+        listOf("juego", "game", "esport").any { it in value } ->
+            Icons.Rounded.SportsEsports
+        else -> Icons.Rounded.LiveTv
     }
 }

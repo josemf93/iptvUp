@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
@@ -24,7 +25,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
@@ -38,6 +38,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.iptvup.app.BuildConfig
 import com.iptvup.app.core.ui.components.AppBackground
 import com.iptvup.app.core.ui.components.BrandLogo
 import com.iptvup.app.core.ui.theme.Danger
@@ -64,7 +65,7 @@ fun LoginScreen(
                     .fillMaxWidth()
                     .widthIn(max = 440.dp)
                     .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 28.dp, vertical = 32.dp),
+                    .padding(start = 28.dp, end = 28.dp, top = 32.dp, bottom = 56.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 BrandLogo()
@@ -140,15 +141,6 @@ fun LoginScreen(
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
-                viewModel.info?.let { message ->
-                    Spacer(Modifier.height(14.dp))
-                    Text(
-                        text = message,
-                        color = Primary,
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
 
                 Spacer(Modifier.height(22.dp))
                 Button(
@@ -167,12 +159,6 @@ fun LoginScreen(
                         fontWeight = FontWeight.SemiBold
                     )
                 }
-                TextButton(
-                    onClick = viewModel::resetPassword,
-                    enabled = !viewModel.loading
-                ) {
-                    Text("He olvidado mi contraseña", color = TextSecondary)
-                }
 
                 Spacer(Modifier.height(18.dp))
                 Text(
@@ -181,6 +167,16 @@ fun LoginScreen(
                     style = MaterialTheme.typography.labelSmall
                 )
             }
+
+            Text(
+                text = "IPTVUp v${BuildConfig.VERSION_NAME}",
+                color = TextSecondary.copy(alpha = 0.65f),
+                style = MaterialTheme.typography.labelSmall,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .navigationBarsPadding()
+                    .padding(bottom = 14.dp)
+            )
         }
     }
 }

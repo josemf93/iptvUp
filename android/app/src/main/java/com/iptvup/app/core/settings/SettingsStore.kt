@@ -32,8 +32,31 @@ class SettingsStore @Inject constructor(
         preferences[LAST_UPDATE_CHECK] ?: 0L
     }
 
+    val profileIcons: Flow<Map<String, String>> = context.settingsDataStore.data.map { preferences ->
+        preferences.asMap().mapNotNull { (key, value) ->
+            val name = key.name
+            if (name.startsWith(PROFILE_ICON_PREFIX) && value is String) {
+                name.removePrefix(PROFILE_ICON_PREFIX) to value
+            } else {
+                null
+            }
+        }.toMap()
+    }
+
     suspend fun getActiveProfileId(): String? =
         context.settingsDataStore.data.first()[ACTIVE_PROFILE_ID]
+
+    suspend fun setProfileIcon(profileId: String, iconKey: String) {
+        context.settingsDataStore.edit { preferences ->
+            preferences[profileIconKey(profileId)] = iconKey
+        }
+    }
+
+    suspend fun clearProfileIcon(profileId: String) {
+        context.settingsDataStore.edit { preferences ->
+            preferences.remove(profileIconKey(profileId))
+        }
+    }
 
     suspend fun setActiveProfileId(profileId: String?) {
         context.settingsDataStore.edit { preferences ->
@@ -57,7 +80,11 @@ class SettingsStore @Inject constructor(
         }
     }
 
+    private fun profileIconKey(profileId: String) =
+        stringPreferencesKey("$PROFILE_ICON_PREFIX$profileId")
+
     private companion object {
+        const val PROFILE_ICON_PREFIX = "profile_icon_"
         val ACTIVE_PROFILE_ID = stringPreferencesKey("active_profile_id")
         val SKIPPED_VERSION_CODE = intPreferencesKey("skipped_version_code")
         val LAST_UPDATE_CHECK = longPreferencesKey("last_update_check_ms")

@@ -20,17 +20,16 @@ class HiddenRepository @Inject constructor(
 
     suspend fun refresh(profileId: String) {
         val uid = auth.currentUser?.uid ?: return
-        val items = remote.getHidden(uid, profileId)
+        val items = remote.getHidden(uid, profileId).filter { it.kind == KIND_GROUP }
         dao.deleteByProfile(profileId)
         items.forEach { item -> dao.insert(item) }
     }
 
+    suspend fun getHiddenGroups(profileId: String): Set<String> =
+        dao.keys(profileId, KIND_GROUP).toSet()
+
     suspend fun toggleGroup(profileId: String, groupName: String) {
         toggle(profileId, KIND_GROUP, groupName)
-    }
-
-    suspend fun toggleChannel(profileId: String, channelKey: String) {
-        toggle(profileId, KIND_CHANNEL, channelKey)
     }
 
     suspend fun setGroupsHidden(
@@ -38,30 +37,22 @@ class HiddenRepository @Inject constructor(
         groups: List<String>,
         hidden: Boolean
     ) {
-        val uid = auth.currentUser?.uid
-        groups.forEach { group ->
-            val exists = dao.exists(profileId, KIND_GROUP, group)
-            if (exists == hidden) return@forEach
+        val target = if (hidden) groups.toSet() else emptySet()
+        val items = target.map { group ->
+            HiddenItemEntity(
+                id = "$profileId:$KIND_GROUP:$group",
+                profileId = profileId,
+                kind = KIND_GROUP,
+                itemKey = group,
+                createdAt = System.currentTimeMillis()
+            )
+        }
+        // Una sola transacción: la UI cambia todos los switches de golpe.
+        dao.replaceKind(profileId, KIND_GROUP, items)
 
-            if (hidden) {
-                dao.insert(
-                    HiddenItemEntity(
-                        id = "$profileId:$KIND_GROUP:$group",
-                        profileId = profileId,
-                        kind = KIND_GROUP,
-                        itemKey = group,
-                        createdAt = System.currentTimeMillis()
-                    )
-                )
-                if (uid != null) {
-                    runCatching { remote.addHidden(uid, profileId, KIND_GROUP, group) }
-                }
-            } else {
-                dao.delete(profileId, KIND_GROUP, group)
-                if (uid != null) {
-                    runCatching { remote.removeHidden(uid, profileId, KIND_GROUP, group) }
-                }
-            }
+        val uid = auth.currentUser?.uid ?: return
+        runCatching {
+            remote.setHiddenKind(uid, profileId, KIND_GROUP, target)
         }
     }
 
@@ -92,6 +83,5 @@ class HiddenRepository @Inject constructor(
 
     companion object {
         const val KIND_GROUP = "group"
-        const val KIND_CHANNEL = "channel"
     }
 }

@@ -111,6 +111,46 @@ class ProfileRemoteDataSource @Inject constructor(
             .await()
     }
 
+    suspend fun setHiddenKind(
+        uid: String,
+        profileId: String,
+        kind: String,
+        itemKeys: Set<String>
+    ) {
+        val ref = hiddenRef(uid, profileId)
+        val existing = ref.get().await().documents.filter { document ->
+            document.getString("kind") == kind
+        }
+        val existingKeys = existing.mapNotNull { it.getString("itemKey") }.toSet()
+        val operations = mutableListOf<Pair<com.google.firebase.firestore.DocumentReference, String?>>()
+        existing.forEach { document ->
+            if (document.getString("itemKey") !in itemKeys) {
+                operations += document.reference to null
+            }
+        }
+        (itemKeys - existingKeys).forEach { itemKey ->
+            operations += ref.document(hiddenDocumentId(kind, itemKey)) to itemKey
+        }
+        operations.chunked(400).forEach { chunk ->
+            val batch = firestore.batch()
+            chunk.forEach { (document, itemKey) ->
+                if (itemKey == null) {
+                    batch.delete(document)
+                } else {
+                    batch.set(
+                        document,
+                        mapOf(
+                            "kind" to kind,
+                            "itemKey" to itemKey,
+                            "createdAt" to System.currentTimeMillis()
+                        )
+                    )
+                }
+            }
+            batch.commit().await()
+        }
+    }
+
     private fun favoritesRef(uid: String, profileId: String) =
         firestore.collection("users")
             .document(uid)
