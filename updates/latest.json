@@ -1,8 +1,8 @@
 {
-  "versionCode": 7,
-  "versionName": "0.6.0",
-  "apkUrl": "https://github.com/josemf93/iptvUp/releases/download/v0.6.0/IPTVUp-v0.6.0.apk",
-  "sha256": "04527f194e0d273ab71d28b87a2629974d5e27b9dc8a177c87020dacb28d6c96",
+  "versionCode": 8,
+  "versionName": "0.7.0",
+  "apkUrl": "https://github.com/josemf93/iptvUp/releases/download/v0.7.0/IPTVUp-v0.7.0.apk",
+  "sha256": "6b55305e884ff75ecbab23e48d7ac14fa7548ce7ea3de14b669778fa491bbb8b",
   "minSupportedVersionCode": 1,
-  "notes": "Sincronización en segundo plano al entrar al perfil y última sincronización real. Filtros masivos de grupos, guía EPG ampliable en el reproductor, gestos de canal/volumen/brillo y cambio de canal con D-pad en TV."
+  "notes": "Sincronización automática una vez al día con entrada inmediata desde caché. TV con grupos en tarjetas e iconos, buscador y filtros instantáneos. Iconos de perfil personalizables, ajustes globales desde la selección de perfiles, versión en el login y EPG solo de grupos visibles."
 }
