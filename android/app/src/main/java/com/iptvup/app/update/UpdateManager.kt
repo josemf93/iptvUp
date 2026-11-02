@@ -38,6 +38,7 @@ data class UpdateInfo(
 sealed interface UpdateState {
     data object Idle : UpdateState
     data object Checking : UpdateState
+    data object UpToDate : UpdateState
     data class Available(
         val info: UpdateInfo,
         val mandatory: Boolean
@@ -70,7 +71,7 @@ class UpdateManager @Inject constructor(
             val manifest = fetchManifest()
             settings.setLastUpdateCheck(now)
             if (manifest == null || manifest.versionCode <= BuildConfig.VERSION_CODE) {
-                _state.value = UpdateState.Idle
+                _state.value = UpdateState.UpToDate
                 return@withContext
             }
             val skipped = settings.skippedVersionCode.first()

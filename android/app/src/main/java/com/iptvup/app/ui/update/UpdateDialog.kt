@@ -27,7 +27,7 @@ fun UpdateDialog(
     onDismiss: () -> Unit
 ) {
     when (state) {
-        UpdateState.Idle, UpdateState.Checking -> Unit
+        UpdateState.Idle, UpdateState.Checking, UpdateState.UpToDate -> Unit
 
         is UpdateState.Available -> {
             AlertDialog(

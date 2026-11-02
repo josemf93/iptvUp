@@ -133,6 +133,12 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun installUpdate() {
+        viewModelScope.launch {
+            updateManager.downloadAndInstall()
+        }
+    }
+
     fun switchProfile(onDone: () -> Unit) {
         viewModelScope.launch {
             profileRepository.clearActiveProfile()

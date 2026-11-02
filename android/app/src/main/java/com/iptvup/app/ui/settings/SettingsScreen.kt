@@ -17,6 +17,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Logout
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.Refresh
@@ -51,6 +52,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.iptvup.app.BuildConfig
 import com.iptvup.app.core.ui.components.ErrorBanner
 import com.iptvup.app.core.ui.components.TypeBadge
+import com.iptvup.app.core.ui.theme.Accent
 import com.iptvup.app.core.ui.theme.Danger
 import com.iptvup.app.core.ui.theme.Primary
 import com.iptvup.app.core.ui.theme.SurfaceDark
@@ -292,11 +294,46 @@ fun SettingsScreen(
                     style = MaterialTheme.typography.bodySmall
                 )
 
-                is UpdateState.Available -> Text(
-                    text = "Hay una versión nueva disponible: v${state.info.versionName}",
-                    color = Primary,
-                    style = MaterialTheme.typography.bodySmall
-                )
+                UpdateState.UpToDate -> Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.CheckCircle,
+                        contentDescription = null,
+                        tint = Accent,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        text = "La app está actualizada",
+                        color = Accent,
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+
+                is UpdateState.Available -> Column {
+                    Text(
+                        text = "Hay una versión nueva disponible: v${state.info.versionName}",
+                        color = Primary,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Button(
+                        onClick = viewModel::installUpdate,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Actualizar a v${state.info.versionName}")
+                    }
+                    if (state.mandatory) {
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            text = "Esta actualización es obligatoria.",
+                            color = Primary,
+                            style = MaterialTheme.typography.labelSmall
+                        )
+                    }
+                }
 
                 is UpdateState.Downloading -> {
                     LinearProgressIndicator(
@@ -318,17 +355,28 @@ fun SettingsScreen(
                     style = MaterialTheme.typography.bodySmall
                 )
 
-                is UpdateState.Error -> ErrorBanner(message = state.message)
+                is UpdateState.Error -> ErrorBanner(
+                    message = state.message,
+                    onRetry = viewModel::installUpdate
+                )
             }
             Spacer(Modifier.height(10.dp))
             OutlinedButton(
                 onClick = viewModel::checkUpdates,
-                enabled = updateState !is UpdateState.Checking,
+                enabled = updateState !is UpdateState.Checking &&
+                    updateState !is UpdateState.Downloading &&
+                    updateState !is UpdateState.Installing,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Icon(Icons.Rounded.Refresh, contentDescription = null)
                 Spacer(Modifier.width(8.dp))
-                Text("Buscar actualizaciones")
+                Text(
+                    if (updateState is UpdateState.UpToDate) {
+                        "Buscar de nuevo"
+                    } else {
+                        "Buscar actualizaciones"
+                    }
+                )
             }
         }
 
