@@ -1,8 +1,8 @@
 {
-  "versionCode": 6,
-  "versionName": "0.5.0",
-  "apkUrl": "https://github.com/josemf93/iptvUp/releases/download/v0.5.0/IPTVUp-v0.5.0.apk",
-  "sha256": "d1f71c5049d948a49a576e6c97c36c9370289be683f8d74bdbfa1f12b510b0b1",
+  "versionCode": 7,
+  "versionName": "0.6.0",
+  "apkUrl": "https://github.com/josemf93/iptvUp/releases/download/v0.6.0/IPTVUp-v0.6.0.apk",
+  "sha256": "04527f194e0d273ab71d28b87a2629974d5e27b9dc8a177c87020dacb28d6c96",
   "minSupportedVersionCode": 1,
-  "notes": "Edición de perfiles, Picture-in-Picture y Chromecast en móvil. Cabecera de perfiles con insets y sin email. Inicio con historial de 10 canales y sin accesos rápidos."
+  "notes": "Sincronización en segundo plano al entrar al perfil y última sincronización real. Filtros masivos de grupos, guía EPG ampliable en el reproductor, gestos de canal/volumen/brillo y cambio de canal con D-pad en TV."
 }
