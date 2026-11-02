@@ -14,11 +14,23 @@ export async function POST(request: Request) {
     const auth = getAdminAuth()
     const decoded = await auth.verifyIdToken(idToken)
     const isAdmin = (decoded as unknown as { admin?: boolean }).admin === true
+    const userDoc = await getAdminDb().collection('users').doc(decoded.uid).get()
+
+    console.log('[session]', {
+      uid: decoded.uid,
+      aud: decoded.aud,
+      admin: isAdmin,
+      userDoc: userDoc.exists,
+      status: userDoc.get('status')
+    })
+
     if (!isAdmin) {
-      return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
+      return NextResponse.json(
+        { error: 'Esta cuenta no tiene permisos de administrador' },
+        { status: 403 }
+      )
     }
 
-    const userDoc = await getAdminDb().collection('users').doc(decoded.uid).get()
     if (!userDoc.exists || userDoc.get('status') === 'disabled') {
       return NextResponse.json(
         { error: 'La cuenta no está activa' },
