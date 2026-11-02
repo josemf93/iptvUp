@@ -5,7 +5,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.google.firebase.auth.FirebaseAuth
 import com.iptvup.app.data.model.IptvProfile
 import com.iptvup.app.data.repository.AuthRepository
 import com.iptvup.app.data.repository.PlaylistRepository
@@ -20,8 +19,7 @@ import javax.inject.Inject
 class ProfilesViewModel @Inject constructor(
     private val profileRepository: ProfileRepository,
     private val playlistRepository: PlaylistRepository,
-    private val authRepository: AuthRepository,
-    auth: FirebaseAuth
+    private val authRepository: AuthRepository
 ) : ViewModel() {
 
     val profiles = profileRepository.profiles.stateIn(
@@ -29,8 +27,6 @@ class ProfilesViewModel @Inject constructor(
         started = SharingStarted.WhileSubscribed(5_000),
         initialValue = emptyList()
     )
-
-    val email: String? = auth.currentUser?.email
 
     var busy by mutableStateOf(false)
         private set

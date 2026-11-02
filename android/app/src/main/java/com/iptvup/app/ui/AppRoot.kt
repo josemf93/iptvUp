@@ -43,11 +43,26 @@ private fun AuthenticatedNavHost() {
                 },
                 onAddProfile = {
                     navController.navigate("add")
+                },
+                onEditProfile = { profileId ->
+                    navController.navigate("edit/$profileId")
                 }
             )
         }
 
         composable("add") {
+            AddProfileScreen(
+                onBack = { navController.popBackStack() },
+                onSaved = { navController.popBackStack() }
+            )
+        }
+
+        composable(
+            route = "edit/{profileId}",
+            arguments = listOf(
+                navArgument("profileId") { type = NavType.StringType }
+            )
+        ) {
             AddProfileScreen(
                 onBack = { navController.popBackStack() },
                 onSaved = { navController.popBackStack() }

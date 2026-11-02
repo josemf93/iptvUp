@@ -74,8 +74,7 @@ fun MainScreen(
                 profile = profile,
                 onPlay = onPlay,
                 onGoLive = { tabName = MainTab.LIVE.name },
-                onGoEpg = { tabName = MainTab.EPG.name },
-                onGoFavorites = { tabName = MainTab.FAVORITES.name }
+                onGoEpg = { tabName = MainTab.EPG.name }
             )
 
             MainTab.LIVE -> LiveScreen(onPlay = onPlay)

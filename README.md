@@ -16,7 +16,9 @@ Reproductor IPTV privado para **Android** y **Android TV**, con perfiles sincron
 - **Deduplicación de canales**: elimina repetidos de la misma calidad y conserva 4K/FHD/HD/SD como entradas separadas, con su etiqueta visible.
 - Reproductor **Media3/ExoPlayer** para HLS y TS.
 - **Guía EPG** (XMLTV) con ahora/después, parrilla temporal en móvil, lista adaptada a TV, buscador de canales y el mismo gestor multi-grupo que TV.
-- Pantalla de inicio con **historial de los últimos 5 canales abiertos**.
+- Pantalla de inicio con **historial de los últimos 10 canales abiertos**.
+- Edición completa de perfiles (nombre, tipo, credenciales y EPG).
+- **Picture-in-Picture** y **Chromecast** en móvil (el botón de Cast usa el receptor multimedia por defecto de Google).
 - Ajustes y gestión de elementos ocultos.
 - UI oscura, adaptada a móvil y Android TV (D-pad, rail lateral, foco visible).
 - Actualizador in-app: descarga el APK desde GitHub Releases, verifica SHA-256 y firma, y abre el instalador.
@@ -324,9 +326,10 @@ npm run set-admin -- admin@test.com
 
 ## 7. Limitaciones actuales / siguientes pasos
 
-- Editar un perfil desde la app (la API `PUT` ya existe; falta la pantalla).
 - Refresco automático en segundo plano con WorkManager.
 - EPG en parrilla temporal también en TV (ahora TV usa lista con ahora/después).
+- Chromecast con receptor propio para streams TS; el receptor por defecto funciona mejor con HLS/DASH.
+- Previsualización en vídeo (mini-player) dentro de la lista de canales de TV.
 - La deduplicación agrupa por canal + calidad; si un proveedor usa el mismo `tvg-id` para feeds distintos de la misma calidad, se queda uno. Las calidades distintas se conservan.
 - Catch-up, grabación, PiP y Chromecast.
 - Login por QR/código en TV.

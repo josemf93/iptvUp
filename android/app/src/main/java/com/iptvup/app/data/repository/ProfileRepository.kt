@@ -80,6 +80,32 @@ class ProfileRepository @Inject constructor(
         refreshProfiles()
     }
 
+    suspend fun updateProfile(
+        profileId: String,
+        name: String,
+        kind: ProfileKind,
+        m3uUrl: String?,
+        xtreamHost: String?,
+        xtreamUsername: String?,
+        xtreamPassword: String?,
+        epgUrl: String?
+    ) {
+        api.updateProfile(
+            profileId,
+            ApiClient.CreateProfileRequest(
+                name = name.trim(),
+                kind = kind.wire,
+                m3uUrl = m3uUrl?.trim()?.takeIf { it.isNotBlank() },
+                xtreamHost = xtreamHost?.trim()?.takeIf { it.isNotBlank() },
+                xtreamUsername = xtreamUsername?.trim()?.takeIf { it.isNotBlank() },
+                xtreamPassword = xtreamPassword?.takeIf { it.isNotBlank() },
+                epgUrl = epgUrl?.trim()?.takeIf { it.isNotBlank() }
+            )
+        )
+        secrets.remove(credentialsKey(profileId))
+        refreshProfiles()
+    }
+
     suspend fun deleteProfile(profile: IptvProfile) {
         val uid = auth.currentUser?.uid ?: return
         remote.deleteProfile(uid, profile.id)

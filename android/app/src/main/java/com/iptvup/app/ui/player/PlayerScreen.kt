@@ -1,9 +1,12 @@
 package com.iptvup.app.ui.player
 
 import android.app.Activity
+import android.app.PictureInPictureParams
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.pm.ActivityInfo
+import android.os.Build
+import android.util.Rational
 import android.view.WindowManager
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
@@ -33,6 +36,7 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Fullscreen
 import androidx.compose.material.icons.rounded.FullscreenExit
 import androidx.compose.material.icons.rounded.Pause
+import androidx.compose.material.icons.rounded.PictureInPictureAlt
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material.icons.rounded.StarBorder
@@ -85,6 +89,10 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
+import com.iptvup.app.cast.CastButton
+import com.iptvup.app.cast.CastController
+import com.iptvup.app.core.pip.PipState
+import com.iptvup.app.core.ui.util.isTelevision
 import com.iptvup.app.core.ui.theme.Accent
 import com.iptvup.app.core.ui.theme.Danger
 import com.iptvup.app.core.ui.theme.Primary
@@ -115,17 +123,39 @@ fun PlayerScreen(
     var controlsVisible by remember { mutableStateOf(true) }
     var interactionTick by remember { mutableIntStateOf(0) }
     var isFullscreen by remember { mutableStateOf(false) }
+    val pipMode by PipState.isInPip.collectAsStateWithLifecycle()
     val focusRequester = remember { FocusRequester() }
     val surfaceFocusRequester = remember { FocusRequester() }
     val view = LocalView.current
+    val isTv = isTelevision()
 
     val player = remember {
         val dataSourceFactory = DefaultHttpDataSource.Factory()
-            .setUserAgent("IPTVUp/0.3")
+            .setUserAgent("IPTVUp/0.5")
             .setAllowCrossProtocolRedirects(true)
         val mediaSourceFactory = DefaultMediaSourceFactory(dataSourceFactory)
         ExoPlayer.Builder(context, mediaSourceFactory).build().apply {
             setHandleAudioBecomingNoisy(true)
+        }
+    }
+
+    val castController = remember(context, isTv) {
+        if (isTv) {
+            null
+        } else {
+            runCatching { CastController(context) }.getOrNull()
+        }
+    }
+
+    val enterPip: () -> Unit = {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            runCatching {
+                activity?.enterPictureInPictureMode(
+                    PictureInPictureParams.Builder()
+                        .setAspectRatio(Rational(16, 9))
+                        .build()
+                )
+            }
         }
     }
 
@@ -159,10 +189,53 @@ fun PlayerScreen(
         onDispose { player.release() }
     }
 
+    DisposableEffect(castController, player) {
+        castController?.attach(
+            onStarted = {
+                if (player.isPlaying) player.pause()
+            },
+            onEnded = {
+                runCatching { player.play() }
+            }
+        )
+        onDispose { castController?.detach() }
+    }
+
+    LaunchedEffect(channel?.streamUrl, castController) {
+        val current = channel ?: return@LaunchedEffect
+        castController?.load(current.streamUrl, current.name)
+    }
+
     DisposableEffect(activity) {
         activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         onDispose {
             activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+    }
+
+    LaunchedEffect(pipMode) {
+        if (!pipMode) {
+            controlsVisible = true
+        }
+    }
+
+    DisposableEffect(activity, isTv) {
+        if (!isTv && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val builder = PictureInPictureParams.Builder()
+                .setAspectRatio(Rational(16, 9))
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                builder.setAutoEnterEnabled(true)
+            }
+            activity?.setPictureInPictureParams(builder.build())
+        }
+        onDispose {
+            if (!isTv && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                activity?.setPictureInPictureParams(
+                    PictureInPictureParams.Builder()
+                        .setAutoEnterEnabled(false)
+                        .build()
+                )
+            }
         }
     }
 
@@ -286,7 +359,7 @@ fun PlayerScreen(
                     }
             )
 
-            if (controlsVisible) {
+            if (controlsVisible && !pipMode) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -355,7 +428,7 @@ fun PlayerScreen(
                 }
             }
 
-            if (controlsVisible) {
+            if (controlsVisible && !pipMode) {
                 Box(
                     modifier = Modifier
                         .align(Alignment.Center)
@@ -425,7 +498,7 @@ fun PlayerScreen(
                 }
             }
 
-            if (controlsVisible) {
+            if (controlsVisible && !pipMode) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -476,6 +549,28 @@ fun PlayerScreen(
                                     style = MaterialTheme.typography.labelSmall,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                        if (!isTv && castController != null) {
+                            CastButton(
+                                modifier = Modifier
+                                    .size(44.dp)
+                                    .padding(start = 4.dp, bottom = 4.dp)
+                            )
+                        }
+                        if (!isTv && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            IconButton(
+                                onClick = {
+                                    enterPip()
+                                    controlsVisible = true
+                                    interactionTick++
+                                }
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.PictureInPictureAlt,
+                                    contentDescription = "Picture-in-Picture",
+                                    tint = Color.White
                                 )
                             }
                         }

@@ -101,7 +101,7 @@ interface EpgDao {
 interface RecentDao {
     @Query(
         "SELECT * FROM recent_channels WHERE profileId = :profileId " +
-            "ORDER BY openedAt DESC LIMIT 5"
+            "ORDER BY openedAt DESC LIMIT 10"
     )
     fun observe(profileId: String): Flow<List<RecentChannelEntity>>
 
@@ -112,7 +112,7 @@ interface RecentDao {
         "DELETE FROM recent_channels WHERE profileId = :profileId " +
             "AND id NOT IN (" +
             "SELECT id FROM recent_channels WHERE profileId = :profileId " +
-            "ORDER BY openedAt DESC LIMIT 5)"
+            "ORDER BY openedAt DESC LIMIT 10)"
     )
     suspend fun trim(profileId: String)
 

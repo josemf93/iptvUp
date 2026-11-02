@@ -1,7 +1,6 @@
 package com.iptvup.app.ui.home
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,9 +16,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CalendarMonth
-import androidx.compose.material.icons.rounded.LiveTv
 import androidx.compose.material.icons.rounded.PlayArrow
-import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -40,13 +37,10 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.iptvup.app.core.ui.components.BrandLogo
 import com.iptvup.app.core.ui.components.FocusableCard
 import com.iptvup.app.core.ui.components.QualityBadge
-import com.iptvup.app.core.ui.theme.Accent
 import com.iptvup.app.core.ui.theme.Primary
 import com.iptvup.app.core.ui.theme.SurfaceDark
-import com.iptvup.app.core.ui.theme.SurfaceElevated
 import com.iptvup.app.core.ui.theme.TextPrimary
 import com.iptvup.app.core.ui.theme.TextSecondary
-import com.iptvup.app.core.ui.util.isTelevision
 import com.iptvup.app.data.local.RecentChannelEntity
 import com.iptvup.app.data.model.IptvProfile
 
@@ -56,13 +50,11 @@ fun HomeScreen(
     onPlay: (String) -> Unit,
     onGoLive: () -> Unit,
     onGoEpg: () -> Unit,
-    onGoFavorites: () -> Unit,
     viewModel: HomeViewModel = hiltViewModel()
 ) {
     val channelCount by viewModel.channelCount.collectAsStateWithLifecycle()
     val favoriteCount by viewModel.favoriteCount.collectAsStateWithLifecycle()
     val recent by viewModel.recent.collectAsStateWithLifecycle()
-    val television = isTelevision()
 
     Column(
         modifier = Modifier
@@ -159,64 +151,6 @@ fun HomeScreen(
             }
         }
 
-        Spacer(Modifier.height(20.dp))
-        Text(
-            text = "Accesos rápidos",
-            color = TextPrimary,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold
-        )
-        Spacer(Modifier.height(10.dp))
-
-        if (television) {
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                QuickCard(
-                    title = "TV en directo",
-                    subtitle = "$channelCount canales",
-                    icon = { Icon(Icons.Rounded.LiveTv, contentDescription = null, tint = Primary) },
-                    onClick = onGoLive,
-                    modifier = Modifier.weight(1f)
-                )
-                QuickCard(
-                    title = "Guía EPG",
-                    subtitle = "Ahora y después",
-                    icon = { Icon(Icons.Rounded.CalendarMonth, contentDescription = null, tint = Accent) },
-                    onClick = onGoEpg,
-                    modifier = Modifier.weight(1f)
-                )
-                QuickCard(
-                    title = "Favoritos",
-                    subtitle = "$favoriteCount guardados",
-                    icon = { Icon(Icons.Rounded.Star, contentDescription = null, tint = Accent) },
-                    onClick = onGoFavorites,
-                    modifier = Modifier.weight(1f)
-                )
-            }
-        } else {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                QuickCard(
-                    title = "TV en directo",
-                    subtitle = "$channelCount canales disponibles",
-                    icon = { Icon(Icons.Rounded.LiveTv, contentDescription = null, tint = Primary) },
-                    onClick = onGoLive,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                QuickCard(
-                    title = "Guía EPG",
-                    subtitle = "Consulta la programación",
-                    icon = { Icon(Icons.Rounded.CalendarMonth, contentDescription = null, tint = Accent) },
-                    onClick = onGoEpg,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                QuickCard(
-                    title = "Favoritos",
-                    subtitle = "$favoriteCount canales guardados",
-                    icon = { Icon(Icons.Rounded.Star, contentDescription = null, tint = Accent) },
-                    onClick = onGoFavorites,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-        }
         Spacer(Modifier.height(24.dp))
     }
 }
@@ -298,46 +232,4 @@ private fun StatCard(
     }
 }
 
-@Composable
-private fun QuickCard(
-    title: String,
-    subtitle: String,
-    icon: @Composable () -> Unit,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    FocusableCard(onClick = onClick, modifier = modifier) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(44.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(SurfaceElevated),
-                contentAlignment = Alignment.Center
-            ) {
-                icon()
-            }
-            Spacer(Modifier.width(12.dp))
-            Column {
-                Text(
-                    text = title,
-                    color = TextPrimary,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Text(
-                    text = subtitle,
-                    color = TextSecondary,
-                    style = MaterialTheme.typography.bodySmall,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-        }
-    }
-}
+

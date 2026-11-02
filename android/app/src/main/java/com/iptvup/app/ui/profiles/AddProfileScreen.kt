@@ -5,13 +5,18 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -52,7 +57,15 @@ fun AddProfileScreen(
     viewModel: AddProfileViewModel = hiltViewModel()
 ) {
     AppBackground {
-        Column(modifier = Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .windowInsetsPadding(
+                    WindowInsets.safeDrawing.only(
+                        WindowInsetsSides.Top + WindowInsetsSides.Horizontal
+                    )
+                )
+        ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -67,7 +80,7 @@ fun AddProfileScreen(
                     )
                 }
                 Text(
-                    text = "Nuevo perfil",
+                    text = if (viewModel.isEditing) "Editar perfil" else "Nuevo perfil",
                     color = TextPrimary,
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.SemiBold
@@ -266,10 +279,14 @@ fun AddProfileScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(52.dp),
-                    enabled = !viewModel.loading
+                    enabled = !viewModel.loading && !viewModel.initialLoading
                 ) {
                     Text(
-                        text = if (viewModel.loading) "Guardando..." else "Guardar perfil",
+                        text = when {
+                            viewModel.loading -> "Guardando..."
+                            viewModel.isEditing -> "Guardar cambios"
+                            else -> "Guardar perfil"
+                        },
                         fontWeight = FontWeight.SemiBold
                     )
                 }
@@ -277,8 +294,12 @@ fun AddProfileScreen(
             }
         }
 
-        if (viewModel.loading) {
-            LoadingOverlay(message = "Creando perfil...")
+        if (viewModel.initialLoading) {
+            LoadingOverlay(message = "Cargando perfil...")
+        } else if (viewModel.loading) {
+            LoadingOverlay(
+                message = if (viewModel.isEditing) "Guardando cambios..." else "Creando perfil..."
+            )
         }
     }
 }

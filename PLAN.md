@@ -9,7 +9,8 @@ Revisión 2: backend Firebase (sin pausas) + actualizaciones in-app sin Play Sto
 
 - [x] Monorepo (`android/`, `web/`, `firebase/`, `updates/`).
 - [x] App Android + Android TV: login, perfiles M3U/Xtream, canales, búsqueda, favoritos, ocultos, reproductor Media3, EPG XMLTV, ajustes.
-- [x] Deduplicación por canal + calidad, filtro multi-grupo y buscador en EPG, e historial de últimos 5 canales.
+- [x] Deduplicación por canal + calidad, filtro multi-grupo y buscador en EPG, historial de últimos 10 canales.
+- [x] Edición de perfiles, Picture-in-Picture y Chromecast (móvil).
 - [x] Panel web: login admin, dashboard, usuarios, creación, activación/desactivación, borrado, reset de contraseña, roles.
 - [x] API de perfiles con cifrado AES-256-GCM.
 - [x] Reglas de Firestore.

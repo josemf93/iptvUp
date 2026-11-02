@@ -7,12 +7,17 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -20,6 +25,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Logout
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.PlayArrow
@@ -63,6 +69,7 @@ import com.iptvup.app.data.model.IptvProfile
 fun ProfilesScreen(
     onOpenProfile: (String) -> Unit,
     onAddProfile: () -> Unit,
+    onEditProfile: (String) -> Unit,
     viewModel: ProfilesViewModel = hiltViewModel()
 ) {
     var profileToDelete by remember { mutableStateOf<IptvProfile?>(null) }
@@ -77,7 +84,15 @@ fun ProfilesScreen(
     }
 
     AppBackground {
-        Column(modifier = Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .windowInsetsPadding(
+                    WindowInsets.safeDrawing.only(
+                        WindowInsetsSides.Top + WindowInsetsSides.Horizontal
+                    )
+                )
+        ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -86,13 +101,6 @@ fun ProfilesScreen(
             ) {
                 BrandLogo()
                 Spacer(Modifier.weight(1f))
-                Text(
-                    text = viewModel.email.orEmpty(),
-                    color = TextSecondary,
-                    style = MaterialTheme.typography.bodySmall,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
                 IconButton(onClick = { confirmLogout = true }) {
                     Icon(
                         imageVector = Icons.Rounded.Logout,
@@ -199,6 +207,7 @@ fun ProfilesScreen(
                         ProfileCard(
                             profile = profile,
                             onOpen = { viewModel.open(profile) },
+                            onEdit = { onEditProfile(profile.id) },
                             onDelete = { profileToDelete = profile }
                         )
                     }
@@ -296,6 +305,7 @@ fun ProfilesScreen(
 private fun ProfileCard(
     profile: IptvProfile,
     onOpen: () -> Unit,
+    onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
     FocusableCard(
@@ -329,6 +339,13 @@ private fun ProfileCard(
                     )
                     Spacer(Modifier.height(4.dp))
                     TypeBadge(profile.kind.wire)
+                }
+                IconButton(onClick = onEdit) {
+                    Icon(
+                        imageVector = Icons.Rounded.Edit,
+                        contentDescription = "Editar perfil",
+                        tint = TextSecondary
+                    )
                 }
                 IconButton(onClick = onDelete) {
                     Icon(
