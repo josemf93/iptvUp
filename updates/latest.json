@@ -1,8 +1,8 @@
 {
-  "versionCode": 5,
-  "versionName": "0.4.1",
-  "apkUrl": "https://github.com/josemf93/iptvUp/releases/download/v0.4.1/IPTVUp-v0.4.1.apk",
-  "sha256": "d7f7e60a9c1916ba978a584b0557493abe1c7fd0ac8d216a4fb51ccc7aaeb870",
+  "versionCode": 6,
+  "versionName": "0.5.0",
+  "apkUrl": "https://github.com/josemf93/iptvUp/releases/download/v0.5.0/IPTVUp-v0.5.0.apk",
+  "sha256": "d1f71c5049d948a49a576e6c97c36c9370289be683f8d74bdbfa1f12b510b0b1",
   "minSupportedVersionCode": 1,
-  "notes": "Botón de pantalla completa dentro del reproductor: fuerza horizontal e inmersivo. En TV, cualquier tecla del mando vuelve a mostrar los controles ocultos."
+  "notes": "Edición de perfiles, Picture-in-Picture y Chromecast en móvil. Cabecera de perfiles con insets y sin email. Inicio con historial de 10 canales y sin accesos rápidos."
 }
