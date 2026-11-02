@@ -44,7 +44,7 @@ android {
             buildConfigField(
                 "String",
                 "UPDATE_MANIFEST_URL",
-                "\"https://raw.githubusercontent.com/USUARIO/IptvUp/main/updates/latest.json\""
+                "\"https://raw.githubusercontent.com/josemf93/iptvUp/main/updates/latest.json\""
             )
         }
         release {
@@ -56,13 +56,13 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            buildConfigField("String", "API_BASE_URL", "\"https://iptvup.vercel.app\"")
+            buildConfigField("String", "API_BASE_URL", "\"https://iptv-up.vercel.app\"")
             buildConfigField("boolean", "USE_FIREBASE_EMULATOR", "false")
             buildConfigField("String", "FIREBASE_EMULATOR_HOST", "\"10.0.2.2\"")
             buildConfigField(
                 "String",
                 "UPDATE_MANIFEST_URL",
-                "\"https://raw.githubusercontent.com/USUARIO/IptvUp/main/updates/latest.json\""
+                "\"https://raw.githubusercontent.com/josemf93/iptvUp/main/updates/latest.json\""
             )
         }
     }
