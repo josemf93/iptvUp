@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "38956219862",
+    "project_id": "iptvup-fdc0e",
+    "storage_bucket": "iptvup-fdc0e.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:38956219862:android:2024ba9d6ce47be31df877",
+        "android_client_info": {
+          "package_name": "com.iptvup.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBHCYZ582xHsIpfqzdblunfkWBt-tb3HTc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

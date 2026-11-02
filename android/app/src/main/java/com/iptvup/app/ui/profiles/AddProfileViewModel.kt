@@ -1,0 +1,83 @@
+package com.iptvup.app.ui.profiles
+
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.iptvup.app.data.model.ProfileKind
+import com.iptvup.app.data.repository.ProfileRepository
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.launch
+import javax.inject.Inject
+
+@HiltViewModel
+class AddProfileViewModel @Inject constructor(
+    private val profileRepository: ProfileRepository
+) : ViewModel() {
+
+    var name by mutableStateOf("")
+    var kind by mutableStateOf(ProfileKind.M3U)
+    var m3uUrl by mutableStateOf("")
+    var xtreamHost by mutableStateOf("")
+    var xtreamUsername by mutableStateOf("")
+    var xtreamPassword by mutableStateOf("")
+    var epgUrl by mutableStateOf("")
+    var loading by mutableStateOf(false)
+        private set
+    var error by mutableStateOf<String?>(null)
+        private set
+
+    fun save(onSaved: () -> Unit) {
+        error = null
+        val validation = validate()
+        if (validation != null) {
+            error = validation
+            return
+        }
+        viewModelScope.launch {
+            loading = true
+            runCatching {
+                profileRepository.createProfile(
+                    name = name,
+                    kind = kind,
+                    m3uUrl = m3uUrl.takeIf { kind == ProfileKind.M3U },
+                    xtreamHost = xtreamHost.takeIf { kind == ProfileKind.XTREAM },
+                    xtreamUsername = xtreamUsername.takeIf { kind == ProfileKind.XTREAM },
+                    xtreamPassword = xtreamPassword.takeIf { kind == ProfileKind.XTREAM },
+                    epgUrl = epgUrl
+                )
+            }.onSuccess {
+                onSaved()
+            }.onFailure {
+                error = "No se pudo crear el perfil: ${it.message ?: "error"}"
+            }
+            loading = false
+        }
+    }
+
+    fun clearError() {
+        error = null
+    }
+
+    private fun validate(): String? {
+        if (name.isBlank()) return "Ponle un nombre al perfil"
+        if (kind == ProfileKind.M3U) {
+            if (m3uUrl.isBlank()) return "Introduce la URL de la lista M3U"
+            if (!m3uUrl.trim().startsWith("http://") && !m3uUrl.trim().startsWith("https://")) {
+                return "La URL M3U debe empezar por http:// o https://"
+            }
+        } else {
+            if (xtreamHost.isBlank()) return "Introduce el host de Xtream Codes"
+            if (xtreamUsername.isBlank()) return "Introduce el usuario de Xtream Codes"
+            if (xtreamPassword.isBlank()) return "Introduce la contraseña de Xtream Codes"
+        }
+        if (epgUrl.isNotBlank() &&
+            !epgUrl.trim().startsWith("http://") &&
+            !epgUrl.trim().startsWith("https://")
+        ) {
+            return "La URL del EPG debe empezar por http:// o https://"
+        }
+        return null
+    }
+}

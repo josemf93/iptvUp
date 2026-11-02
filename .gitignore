@@ -1,0 +1,30 @@
+# Android
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/.idea/
+android/captures/
+*.iml
+*.keystore
+*.jks
+
+# Web
+web/node_modules/
+web/.next/
+web/out/
+web/.env.local
+web/.env
+web/.vercel/
+web/next-env.d.ts
+
+# Firebase
+firebase/.firebase/
+firebase/*-firebase-adminsdk-*.json
+firebase/service-account*.json
+
+# OS / editors
+.DS_Store
+Thumbs.db
+.vscode/
+firebase/*-debug.log
