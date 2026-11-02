@@ -154,9 +154,16 @@ node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
 
 - Importa el repositorio.
 - **Root Directory:** `web`.
-- Añade las variables de `web/.env.local` en Vercel.
+- Añade las variables de `web/.env.local` en Vercel. En Vercel no existe
+  `GOOGLE_APPLICATION_CREDENTIALS`: usa `FIREBASE_CLIENT_EMAIL` y
+  `FIREBASE_PRIVATE_KEY`.
+- Node.js: 22.x.
 - Deploy.
 - Actualiza en Android la URL de la API (`API_BASE_URL`) a tu dominio de Vercel.
+
+> No actualices `firebase-admin` a la versión 14: usa `13.6.0`. La 14 trae
+> `jose@6` (solo ESM) y el login falla en Vercel con
+> `require() of ES Module ... jose ... not supported`.
 
 > Vercel Hobby es para uso personal/no comercial. Si esto crece, necesitarás un plan de pago.
 
