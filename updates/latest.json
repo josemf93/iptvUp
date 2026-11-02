@@ -1,8 +1,8 @@
 {
-  "versionCode": 4,
-  "versionName": "0.4.0",
-  "apkUrl": "https://github.com/josemf93/iptvUp/releases/download/v0.4.0/IPTVUp-v0.4.0.apk",
-  "sha256": "51061a8c75f34b5f68bd883aabadb6350cea8df26fac4ea4f5f6ba475af917b3",
+  "versionCode": 5,
+  "versionName": "0.4.1",
+  "apkUrl": "https://github.com/josemf93/iptvUp/releases/download/v0.4.1/IPTVUp-v0.4.1.apk",
+  "sha256": "d7f7e60a9c1916ba978a584b0557493abe1c7fd0ac8d216a4fb51ccc7aaeb870",
   "minSupportedVersionCode": 1,
-  "notes": "Reproductor: controles con auto-ocultado, botón de pantalla completa e insets para móviles con notch. Ajustes: aviso de app actualizada con check verde y botón de actualización cuando hay versión nueva."
+  "notes": "Botón de pantalla completa dentro del reproductor: fuerza horizontal e inmersivo. En TV, cualquier tecla del mando vuelve a mostrar los controles ocultos."
 }
