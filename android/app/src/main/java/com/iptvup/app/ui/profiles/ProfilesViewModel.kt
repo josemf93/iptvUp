@@ -7,8 +7,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.iptvup.app.data.model.IptvProfile
 import com.iptvup.app.data.repository.AuthRepository
-import com.iptvup.app.data.repository.PlaylistRepository
 import com.iptvup.app.data.repository.ProfileRepository
+import com.iptvup.app.data.sync.SyncManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.stateIn
@@ -18,7 +18,7 @@ import javax.inject.Inject
 @HiltViewModel
 class ProfilesViewModel @Inject constructor(
     private val profileRepository: ProfileRepository,
-    private val playlistRepository: PlaylistRepository,
+    private val syncManager: SyncManager,
     private val authRepository: AuthRepository
 ) : ViewModel() {
 
@@ -53,30 +53,12 @@ class ProfilesViewModel @Inject constructor(
     }
 
     fun open(profile: IptvProfile) {
-        if (busy) return
         viewModelScope.launch {
-            busy = true
             error = null
-            pendingProfile = null
-            status = "Seleccionando perfil..."
-            try {
-                profileRepository.selectProfile(profile.id)
-                status = "Obteniendo credenciales..."
-                val credentials = profileRepository.getCredentials(profile)
-                playlistRepository.sync(profile, credentials) { message ->
-                    status = message
-                }.onSuccess {
-                    navigateTo = profile.id
-                }.onFailure {
-                    pendingProfile = profile
-                    error = "No se pudo actualizar el perfil: ${it.message ?: "error"}"
-                }
-            } catch (exception: Exception) {
-                pendingProfile = profile
-                error = "No se pudo actualizar el perfil: ${exception.message ?: "error"}"
-            } finally {
-                busy = false
-            }
+            profileRepository.selectProfile(profile.id)
+            // Entra inmediatamente: la descarga sigue en segundo plano.
+            syncManager.sync(profile.id)
+            navigateTo = profile.id
         }
     }
 

@@ -19,7 +19,9 @@ Reproductor IPTV privado para **Android** y **Android TV**, con perfiles sincron
 - Pantalla de inicio con **historial de los últimos 10 canales abiertos**.
 - Edición completa de perfiles (nombre, tipo, credenciales y EPG).
 - **Picture-in-Picture** y **Chromecast** en móvil (el botón de Cast usa el receptor multimedia por defecto de Google).
-- Ajustes y gestión de elementos ocultos.
+- **Gestos en el reproductor**: desliza en horizontal para cambiar de canal, en vertical derecho para el volumen y en vertical izquierdo para el brillo. En TV, D-pad izquierda/derecha cambia de canal.
+- **Guía EPG ampliable** dentro del reproductor, sin salir de la reproducción.
+- Ajustes, sincronización en segundo plano al entrar al perfil y gestor masivo de grupos visibles.
 - UI oscura, adaptada a móvil y Android TV (D-pad, rail lateral, foco visible).
 - Actualizador in-app: descarga el APK desde GitHub Releases, verifica SHA-256 y firma, y abre el instalador.
 - Caché local con Room; la playlist y el EPG no se suben a la nube.
@@ -205,8 +207,8 @@ Para Android TV también puedes copiar el APK con la app **Downloader** o por AD
 1. Abre la app e inicia sesión con un usuario creado en el panel.
 2. Pulsa **Añadir perfil**.
 3. Elige M3U o Xtream Codes, rellena los datos y guarda.
-4. Abre el perfil: se descargan canales y EPG.
-5. En **Ajustes** puedes actualizar la lista/EPG y gestionar los elementos ocultos.
+4. Abre el perfil: entra al instante con los datos en caché y la lista/EPG se actualiza en segundo plano.
+5. En **Ajustes** puedes forzar la actualización de la lista/EPG.
 
 > La creación del perfil pasa por la API del panel (`/api/profiles`), porque es la que cifra las credenciales. Si la API no está accesible, el alta fallará.
 
@@ -326,7 +328,7 @@ npm run set-admin -- admin@test.com
 
 ## 7. Limitaciones actuales / siguientes pasos
 
-- Refresco automático en segundo plano con WorkManager.
+- EPG de respaldo para canales españoles sin `tvg-id`: emparejamiento por nombre con una fuente XMLTV externa (por ejemplo TDTChannels).
 - EPG en parrilla temporal también en TV (ahora TV usa lista con ahora/después).
 - Chromecast con receptor propio para streams TS; el receptor por defecto funciona mejor con HLS/DASH.
 - Previsualización en vídeo (mini-player) dentro de la lista de canales de TV.

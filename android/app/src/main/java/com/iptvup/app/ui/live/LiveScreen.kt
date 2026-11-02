@@ -301,6 +301,8 @@ fun LiveScreen(
             groups = allGroups,
             hiddenGroups = hiddenGroups,
             onToggle = viewModel::toggleGroupHidden,
+            onShowAll = viewModel::showAllGroups,
+            onHideAll = viewModel::hideAllGroups,
             onDismiss = { showGroupsDialog = false }
         )
     }

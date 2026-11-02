@@ -1,5 +1,6 @@
 package com.iptvup.app.core.ui.components
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -24,6 +25,8 @@ fun GroupVisibilityDialog(
     groups: List<String>,
     hiddenGroups: Set<String>,
     onToggle: (String) -> Unit,
+    onShowAll: () -> Unit,
+    onHideAll: () -> Unit,
     onDismiss: () -> Unit
 ) {
     AlertDialog(
@@ -40,6 +43,17 @@ fun GroupVisibilityDialog(
                     color = TextSecondary,
                     style = androidx.compose.material3.MaterialTheme.typography.bodySmall
                 )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    TextButton(onClick = onShowAll) {
+                        Text("Mostrar todos")
+                    }
+                    TextButton(onClick = onHideAll) {
+                        Text("Ocultar todos")
+                    }
+                }
                 if (groups.isEmpty()) {
                     Text(
                         text = "No hay grupos en este perfil.",

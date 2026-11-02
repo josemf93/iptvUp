@@ -22,7 +22,6 @@ import androidx.compose.material.icons.rounded.Logout
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.SwapHoriz
-import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -68,7 +67,6 @@ fun SettingsScreen(
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
     val channelCount by viewModel.channelCount.collectAsStateWithLifecycle()
-    val hiddenUi by viewModel.hiddenUi.collectAsStateWithLifecycle()
     val updateState by viewModel.updateState.collectAsStateWithLifecycle()
     var confirmLogout by remember { mutableStateOf(false) }
 
@@ -161,83 +159,6 @@ fun SettingsScreen(
             viewModel.error?.let { message ->
                 Spacer(Modifier.height(10.dp))
                 ErrorBanner(message = message, onRetry = viewModel::sync)
-            }
-        }
-
-        Spacer(Modifier.height(16.dp))
-        SectionTitle("Elementos ocultos")
-        SettingsCard {
-            if (hiddenUi.groups.isEmpty() && hiddenUi.channels.isEmpty()) {
-                Text(
-                    text = "No hay grupos ni canales ocultos.",
-                    color = TextSecondary,
-                    style = MaterialTheme.typography.bodySmall
-                )
-            }
-            if (hiddenUi.groups.isNotEmpty()) {
-                Text(
-                    text = "Grupos",
-                    color = TextPrimary,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold
-                )
-                hiddenUi.groups.forEach { group ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 2.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = group,
-                            color = TextSecondary,
-                            modifier = Modifier.weight(1f),
-                            style = MaterialTheme.typography.bodySmall,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        IconButton(onClick = { viewModel.restoreGroup(group) }) {
-                            Icon(
-                                imageVector = Icons.Rounded.Visibility,
-                                contentDescription = "Mostrar grupo",
-                                tint = Primary
-                            )
-                        }
-                    }
-                }
-                Spacer(Modifier.height(8.dp))
-            }
-            if (hiddenUi.channels.isNotEmpty()) {
-                Text(
-                    text = "Canales",
-                    color = TextPrimary,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold
-                )
-                hiddenUi.channels.forEach { (key, name) ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 2.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = name,
-                            color = TextSecondary,
-                            modifier = Modifier.weight(1f),
-                            style = MaterialTheme.typography.bodySmall,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        IconButton(onClick = { viewModel.restoreChannel(key) }) {
-                            Icon(
-                                imageVector = Icons.Rounded.Visibility,
-                                contentDescription = "Mostrar canal",
-                                tint = Primary
-                            )
-                        }
-                    }
-                }
             }
         }
 

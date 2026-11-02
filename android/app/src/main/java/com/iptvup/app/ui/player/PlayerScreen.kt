@@ -5,6 +5,7 @@ import android.app.PictureInPictureParams
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.pm.ActivityInfo
+import android.media.AudioManager
 import android.os.Build
 import android.util.Rational
 import android.view.WindowManager
@@ -12,7 +13,9 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
-import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,6 +23,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -29,10 +33,13 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Fullscreen
 import androidx.compose.material.icons.rounded.FullscreenExit
 import androidx.compose.material.icons.rounded.Pause
@@ -44,6 +51,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -104,6 +112,8 @@ import com.iptvup.app.data.identity.ChannelQuality
 import com.iptvup.app.core.ui.util.formatTime
 import com.iptvup.app.core.ui.util.progressFraction
 import kotlinx.coroutines.delay
+import kotlin.math.abs
+import kotlin.math.roundToInt
 
 @Composable
 fun PlayerScreen(
@@ -113,6 +123,7 @@ fun PlayerScreen(
     val channel by viewModel.channel.collectAsStateWithLifecycle()
     val loaded by viewModel.loaded.collectAsStateWithLifecycle()
     val epg by viewModel.epg.collectAsStateWithLifecycle()
+    val epgPrograms by viewModel.epgPrograms.collectAsStateWithLifecycle()
     val favorite by viewModel.favorite.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val activity = remember(context) { context.findActivity() }
@@ -123,15 +134,25 @@ fun PlayerScreen(
     var controlsVisible by remember { mutableStateOf(true) }
     var interactionTick by remember { mutableIntStateOf(0) }
     var isFullscreen by remember { mutableStateOf(false) }
+    var epgExpanded by remember { mutableStateOf(false) }
+    var gestureHint by remember { mutableStateOf<String?>(null) }
+    var gestureHintTick by remember { mutableIntStateOf(0) }
     val pipMode by PipState.isInPip.collectAsStateWithLifecycle()
     val focusRequester = remember { FocusRequester() }
     val surfaceFocusRequester = remember { FocusRequester() }
     val view = LocalView.current
     val isTv = isTelevision()
 
+    val audioManager = remember(context) {
+        context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+    }
+    val maxVolume = remember(audioManager) {
+        audioManager?.getStreamMaxVolume(AudioManager.STREAM_MUSIC) ?: 0
+    }
+
     val player = remember {
         val dataSourceFactory = DefaultHttpDataSource.Factory()
-            .setUserAgent("IPTVUp/0.5")
+            .setUserAgent("IPTVUp/0.6")
             .setAllowCrossProtocolRedirects(true)
         val mediaSourceFactory = DefaultMediaSourceFactory(dataSourceFactory)
         ExoPlayer.Builder(context, mediaSourceFactory).build().apply {
@@ -210,6 +231,11 @@ fun PlayerScreen(
         activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         onDispose {
             activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            activity?.window?.let { window ->
+                val params = window.attributes
+                params.screenBrightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
+                window.attributes = params
+            }
         }
     }
 
@@ -265,10 +291,17 @@ fun PlayerScreen(
         }
     }
 
-    LaunchedEffect(controlsVisible, isPlaying, interactionTick) {
-        if (controlsVisible && isPlaying) {
+    LaunchedEffect(controlsVisible, isPlaying, interactionTick, epgExpanded) {
+        if (controlsVisible && isPlaying && !epgExpanded) {
             delay(4_000L)
             controlsVisible = false
+        }
+    }
+
+    LaunchedEffect(gestureHintTick) {
+        if (gestureHint != null) {
+            delay(900L)
+            gestureHint = null
         }
     }
 
@@ -285,7 +318,13 @@ fun PlayerScreen(
         interactionTick++
     }
 
-    BackHandler(onBack = onBack)
+    BackHandler {
+        if (epgExpanded) {
+            epgExpanded = false
+        } else {
+            onBack()
+        }
+    }
 
     Box(
         modifier = Modifier
@@ -295,13 +334,24 @@ fun PlayerScreen(
                 if (event.key == Key.Back) {
                     false
                 } else if (event.type == KeyEventType.KeyDown) {
-                    if (!controlsVisible) {
-                        controlsVisible = true
-                        interactionTick++
-                        true
-                    } else {
-                        interactionTick++
-                        false
+                    val isLeft = event.key == Key.DirectionLeft
+                    val isRight = event.key == Key.DirectionRight
+                    when {
+                        !controlsVisible && !epgExpanded && (isLeft || isRight) -> {
+                            viewModel.changeChannel(if (isRight) 1 else -1)
+                            true
+                        }
+
+                        !controlsVisible && !epgExpanded -> {
+                            controlsVisible = true
+                            interactionTick++
+                            true
+                        }
+
+                        else -> {
+                            interactionTick++
+                            false
+                        }
                     }
                 } else {
                     false
@@ -350,12 +400,88 @@ fun PlayerScreen(
                     .focusRequester(surfaceFocusRequester)
                     .focusable()
                     .pointerInput(Unit) {
-                        detectTapGestures(
-                            onTap = {
-                                controlsVisible = !controlsVisible
-                                interactionTick++
+                        awaitEachGesture {
+                            val down = awaitFirstDown(requireUnconsumed = false)
+                            var totalX = 0f
+                            var totalY = 0f
+                            var lastPosition = down.position
+                            var mode: String? = null
+                            val onRightSide = down.position.x > size.width / 2f
+                            val startVolume = audioManager
+                                ?.getStreamVolume(AudioManager.STREAM_MUSIC) ?: 0
+                            val startBrightness = activity?.window?.attributes
+                                ?.screenBrightness
+                                ?.takeIf { it >= 0f } ?: 0.5f
+
+                            var dragging = true
+                            while (dragging) {
+                                val event = awaitPointerEvent()
+                                val change = event.changes
+                                    .firstOrNull { it.id == down.id } ?: break
+                                val delta = change.position - lastPosition
+                                lastPosition = change.position
+                                totalX += delta.x
+                                totalY += delta.y
+                                if (mode == null &&
+                                    (abs(totalX) > 20f || abs(totalY) > 20f)
+                                ) {
+                                    mode = if (abs(totalY) > abs(totalX)) {
+                                        "vertical"
+                                    } else {
+                                        "horizontal"
+                                    }
+                                }
+                                if (mode == "vertical") {
+                                    change.consume()
+                                    val height = size.height.coerceAtLeast(1).toFloat()
+                                    if (onRightSide) {
+                                        if (maxVolume > 0) {
+                                            val deltaVolume =
+                                                (-totalY / (height * 0.6f)) * maxVolume
+                                            val newVolume = (startVolume + deltaVolume)
+                                                .roundToInt()
+                                                .coerceIn(0, maxVolume)
+                                            audioManager?.setStreamVolume(
+                                                AudioManager.STREAM_MUSIC,
+                                                newVolume,
+                                                0
+                                            )
+                                            gestureHint =
+                                                "Volumen ${newVolume * 100 / maxVolume}%"
+                                        }
+                                    } else {
+                                        val deltaBrightness = -totalY / (height * 0.6f)
+                                        val newBrightness =
+                                            (startBrightness + deltaBrightness)
+                                                .coerceIn(0.02f, 1f)
+                                        activity?.window?.let { window ->
+                                            val params = window.attributes
+                                            params.screenBrightness = newBrightness
+                                            window.attributes = params
+                                        }
+                                        gestureHint =
+                                            "Brillo ${(newBrightness * 100).roundToInt()}%"
+                                    }
+                                    gestureHintTick++
+                                } else if (mode == "horizontal") {
+                                    change.consume()
+                                }
+
+                                if (!change.pressed) {
+                                    if (mode == null) {
+                                        controlsVisible = !controlsVisible
+                                        interactionTick++
+                                    } else if (!epgExpanded &&
+                                        mode == "horizontal" &&
+                                        abs(totalX) > size.width * 0.12f &&
+                                        abs(totalX) > abs(totalY)
+                                    ) {
+                                        viewModel.changeChannel(if (totalX < 0) 1 else -1)
+                                    }
+                                    dragging = false
+                                }
                             }
-                        )
+                        }
                     }
             )
 
@@ -402,6 +528,28 @@ fun PlayerScreen(
                                 style = MaterialTheme.typography.labelSmall,
                                 maxLines = 1
                             )
+                        }
+                        if (!isTv && castController != null) {
+                            CastButton(
+                                modifier = Modifier
+                                    .size(44.dp)
+                                    .padding(start = 4.dp)
+                            )
+                        }
+                        if (!isTv && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            IconButton(
+                                onClick = {
+                                    enterPip()
+                                    controlsVisible = true
+                                    interactionTick++
+                                }
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.PictureInPictureAlt,
+                                    contentDescription = "Picture-in-Picture",
+                                    tint = Color.White
+                                )
+                            }
                         }
                         IconButton(
                             onClick = {
@@ -513,20 +661,30 @@ fun PlayerScreen(
                                 WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal
                             )
                         )
-                        .padding(horizontal = 20.dp, vertical = 18.dp)
+                        .padding(horizontal = 20.dp, vertical = 22.dp)
                 ) {
                     Row(verticalAlignment = Alignment.Bottom) {
-                        Column(modifier = Modifier.weight(1f)) {
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(12.dp))
+                                .clickable {
+                                    epgExpanded = true
+                                    controlsVisible = true
+                                    interactionTick++
+                                }
+                                .padding(vertical = 6.dp, horizontal = 4.dp)
+                        ) {
                             Text(
                                 text = epg.now?.title ?: "Sin información de EPG",
                                 color = Color.White,
-                                style = MaterialTheme.typography.titleSmall,
+                                style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.SemiBold,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
                             epg.now?.let { now ->
-                                Spacer(Modifier.height(6.dp))
+                                Spacer(Modifier.height(8.dp))
                                 LinearProgressIndicator(
                                     progress = {
                                         progressFraction(
@@ -537,42 +695,26 @@ fun PlayerScreen(
                                     },
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .height(3.dp),
+                                        .height(5.dp),
                                     color = Accent,
                                     trackColor = SurfaceElevated
                                 )
-                                Spacer(Modifier.height(6.dp))
+                                Spacer(Modifier.height(8.dp))
                                 Text(
                                     text = "${formatTime(now.startMs)} - ${formatTime(now.endMs)}" +
                                         (epg.next?.let { "  ·  Después: ${it.title}" } ?: ""),
-                                    color = Color.White.copy(alpha = 0.65f),
-                                    style = MaterialTheme.typography.labelSmall,
+                                    color = Color.White.copy(alpha = 0.72f),
+                                    style = MaterialTheme.typography.bodySmall,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
                                 )
                             }
-                        }
-                        if (!isTv && castController != null) {
-                            CastButton(
-                                modifier = Modifier
-                                    .size(44.dp)
-                                    .padding(start = 4.dp, bottom = 4.dp)
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                text = "Toca para ver la guía completa",
+                                color = Accent,
+                                style = MaterialTheme.typography.labelSmall
                             )
-                        }
-                        if (!isTv && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                            IconButton(
-                                onClick = {
-                                    enterPip()
-                                    controlsVisible = true
-                                    interactionTick++
-                                }
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Rounded.PictureInPictureAlt,
-                                    contentDescription = "Picture-in-Picture",
-                                    tint = Color.White
-                                )
-                            }
                         }
                         IconButton(
                             onClick = {
@@ -597,6 +739,150 @@ fun PlayerScreen(
                             )
                         }
                     }
+                }
+            }
+
+            if (epgExpanded && !pipMode) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.55f))
+                        .clickable(
+                            indication = null,
+                            interactionSource = remember { MutableInteractionSource() }
+                        ) {
+                            epgExpanded = false
+                        }
+                )
+                Card(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        .fillMaxHeight(0.64f)
+                        .padding(12.dp)
+                        .clickable(
+                            indication = null,
+                            interactionSource = remember { MutableInteractionSource() }
+                        ) { },
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(containerColor = SurfaceDark)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = channel?.name.orEmpty(),
+                                    color = TextPrimary,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    text = "Guía completa del canal",
+                                    color = TextSecondary,
+                                    style = MaterialTheme.typography.labelSmall
+                                )
+                            }
+                            IconButton(onClick = { epgExpanded = false }) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Close,
+                                    contentDescription = "Cerrar guía",
+                                    tint = Color.White
+                                )
+                            }
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        if (epgPrograms.isEmpty()) {
+                            Text(
+                                text = "Sin información de EPG para este canal.",
+                                color = TextSecondary,
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        } else {
+                            val nowMs = System.currentTimeMillis()
+                            LazyColumn(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .weight(1f)
+                            ) {
+                                items(epgPrograms, key = { it.id }) { program ->
+                                    val isCurrent = nowMs >= program.startMs &&
+                                        nowMs < program.endMs
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(10.dp))
+                                            .background(
+                                                if (isCurrent) {
+                                                    Accent.copy(alpha = 0.18f)
+                                                } else {
+                                                    Color.Transparent
+                                                }
+                                            )
+                                            .clickable { }
+                                            .padding(horizontal = 10.dp, vertical = 8.dp)
+                                    ) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text(
+                                                text = "${formatTime(program.startMs)} - " +
+                                                    formatTime(program.endMs),
+                                                color = if (isCurrent) Accent else TextSecondary,
+                                                style = MaterialTheme.typography.labelSmall
+                                            )
+                                            if (isCurrent) {
+                                                Text(
+                                                    text = "  ·  Ahora",
+                                                    color = Accent,
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    fontWeight = FontWeight.SemiBold
+                                                )
+                                            }
+                                        }
+                                        Spacer(Modifier.height(2.dp))
+                                        Text(
+                                            text = program.title,
+                                            color = TextPrimary,
+                                            style = MaterialTheme.typography.titleSmall,
+                                            maxLines = 2,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        val description = program.description
+                                        if (!description.isNullOrBlank()) {
+                                            Spacer(Modifier.height(2.dp))
+                                            Text(
+                                                text = description,
+                                                color = TextSecondary,
+                                                style = MaterialTheme.typography.bodySmall,
+                                                maxLines = 2,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                        }
+                                    }
+                                    HorizontalDivider(
+                                        color = SurfaceElevated.copy(alpha = 0.5f)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            gestureHint?.let { hint ->
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .clip(RoundedCornerShape(50))
+                        .background(Color.Black.copy(alpha = 0.78f))
+                        .padding(horizontal = 22.dp, vertical = 12.dp)
+                ) {
+                    Text(
+                        text = hint,
+                        color = Color.White,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
                 }
             }
         }

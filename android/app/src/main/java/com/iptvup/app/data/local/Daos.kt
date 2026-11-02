@@ -41,6 +41,12 @@ interface ChannelDao {
     @Query("SELECT * FROM channels WHERE id = :id LIMIT 1")
     suspend fun getById(id: String): ChannelEntity?
 
+    @Query(
+        "SELECT * FROM channels WHERE profileId = :profileId AND groupName = :groupName " +
+            "ORDER BY sortOrder, name COLLATE NOCASE"
+    )
+    suspend fun getForGroup(profileId: String, groupName: String): List<ChannelEntity>
+
     @Query("SELECT * FROM channels WHERE profileId = :profileId AND channelKey = :channelKey LIMIT 1")
     suspend fun getByKey(profileId: String, channelKey: String): ChannelEntity?
 
@@ -95,6 +101,17 @@ interface EpgDao {
             "AND startMs > :at ORDER BY startMs LIMIT 1"
     )
     suspend fun getNext(profileId: String, epgId: String, at: Long): EpgProgramEntity?
+
+    @Query(
+        "SELECT * FROM epg_programs WHERE profileId = :profileId AND epgChannelId = :epgId " +
+            "AND endMs >= :from AND startMs <= :to ORDER BY startMs"
+    )
+    suspend fun getForChannel(
+        profileId: String,
+        epgId: String,
+        from: Long,
+        to: Long
+    ): List<EpgProgramEntity>
 }
 
 @Dao

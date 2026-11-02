@@ -33,6 +33,38 @@ class HiddenRepository @Inject constructor(
         toggle(profileId, KIND_CHANNEL, channelKey)
     }
 
+    suspend fun setGroupsHidden(
+        profileId: String,
+        groups: List<String>,
+        hidden: Boolean
+    ) {
+        val uid = auth.currentUser?.uid
+        groups.forEach { group ->
+            val exists = dao.exists(profileId, KIND_GROUP, group)
+            if (exists == hidden) return@forEach
+
+            if (hidden) {
+                dao.insert(
+                    HiddenItemEntity(
+                        id = "$profileId:$KIND_GROUP:$group",
+                        profileId = profileId,
+                        kind = KIND_GROUP,
+                        itemKey = group,
+                        createdAt = System.currentTimeMillis()
+                    )
+                )
+                if (uid != null) {
+                    runCatching { remote.addHidden(uid, profileId, KIND_GROUP, group) }
+                }
+            } else {
+                dao.delete(profileId, KIND_GROUP, group)
+                if (uid != null) {
+                    runCatching { remote.removeHidden(uid, profileId, KIND_GROUP, group) }
+                }
+            }
+        }
+    }
+
     private suspend fun toggle(profileId: String, kind: String, itemKey: String) {
         val exists = dao.exists(profileId, kind, itemKey)
         if (exists) {

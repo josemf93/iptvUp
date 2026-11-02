@@ -9,8 +9,8 @@ import com.iptvup.app.data.local.EpgDao
 import com.iptvup.app.data.local.EpgProgramEntity
 import com.iptvup.app.data.local.HiddenItemEntity
 import com.iptvup.app.data.repository.HiddenRepository
-import com.iptvup.app.data.repository.PlaylistRepository
-import com.iptvup.app.data.repository.ProfileRepository
+import com.iptvup.app.data.sync.SyncManager
+import com.iptvup.app.data.sync.SyncState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -43,8 +43,7 @@ class EpgViewModel @Inject constructor(
     private val channelDao: ChannelDao,
     private val epgDao: EpgDao,
     private val hiddenRepository: HiddenRepository,
-    private val profileRepository: ProfileRepository,
-    private val playlistRepository: PlaylistRepository
+    private val syncManager: SyncManager
 ) : ViewModel() {
 
     val profileId: String = checkNotNull(savedStateHandle["profileId"])
@@ -58,14 +57,38 @@ class EpgViewModel @Inject constructor(
     private val _query = MutableStateFlow("")
     val query: StateFlow<String> = _query.asStateFlow()
 
-    private val _syncing = MutableStateFlow(false)
-    val syncing: StateFlow<Boolean> = _syncing.asStateFlow()
+    val syncing: StateFlow<Boolean> = syncManager.state
+        .map { it is SyncState.Running && it.profileId == profileId }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = false
+        )
 
-    private val _status = MutableStateFlow("")
-    val status: StateFlow<String> = _status.asStateFlow()
+    val status: StateFlow<String> = syncManager.state
+        .map {
+            (it as? SyncState.Running)
+                ?.takeIf { running -> running.profileId == profileId }
+                ?.status
+                .orEmpty()
+        }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = ""
+        )
 
-    private val _error = MutableStateFlow<String?>(null)
-    val error: StateFlow<String?> = _error.asStateFlow()
+    val error: StateFlow<String?> = syncManager.state
+        .map {
+            (it as? SyncState.Error)
+                ?.takeIf { failure -> failure.profileId == profileId }
+                ?.message
+        }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = null
+        )
 
     private val hidden: StateFlow<List<HiddenItemEntity>> = hiddenRepository.observe(profileId).stateIn(
         scope = viewModelScope,
@@ -158,6 +181,13 @@ class EpgViewModel @Inject constructor(
             runCatching { hiddenRepository.refresh(profileId) }
         }
         viewModelScope.launch {
+            syncManager.state.collect { state ->
+                if (state is SyncState.Success && state.profileId == profileId) {
+                    loadPrograms()
+                }
+            }
+        }
+        viewModelScope.launch {
             loadPrograms()
             while (isActive) {
                 delay(5 * 60 * 1000L)
@@ -183,40 +213,29 @@ class EpgViewModel @Inject constructor(
         }
     }
 
+    fun showAllGroups() {
+        viewModelScope.launch {
+            hiddenRepository.setGroupsHidden(profileId, allGroups.value, hidden = false)
+        }
+    }
+
+    fun hideAllGroups() {
+        _selectedGroup.value = null
+        viewModelScope.launch {
+            hiddenRepository.setGroupsHidden(profileId, allGroups.value, hidden = true)
+        }
+    }
+
     fun refresh() {
         viewModelScope.launch { loadPrograms() }
     }
 
     fun sync() {
-        if (_syncing.value) return
-        viewModelScope.launch {
-            _syncing.value = true
-            _error.value = null
-            _status.value = "Preparando..."
-            val profile = profileRepository.getById(profileId)
-            if (profile == null) {
-                _error.value = "No se encontró el perfil"
-                _syncing.value = false
-                return@launch
-            }
-            try {
-                val credentials = profileRepository.getCredentials(profile)
-                playlistRepository.sync(profile, credentials) { message ->
-                    _status.value = message
-                }.onSuccess {
-                    loadPrograms()
-                }.onFailure {
-                    _error.value = it.message ?: "No se pudo actualizar la guía"
-                }
-            } catch (exception: Exception) {
-                _error.value = exception.message ?: "No se pudo actualizar la guía"
-            }
-            _syncing.value = false
-        }
+        syncManager.sync(profileId)
     }
 
     fun dismissError() {
-        _error.value = null
+        syncManager.clearError(profileId)
     }
 
     private suspend fun loadPrograms() {

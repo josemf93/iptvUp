@@ -6,9 +6,11 @@ import androidx.lifecycle.viewModelScope
 import com.iptvup.app.data.local.ChannelDao
 import com.iptvup.app.data.local.ChannelEntity
 import com.iptvup.app.data.local.EpgDao
+import com.iptvup.app.data.local.EpgProgramEntity
 import com.iptvup.app.data.local.toParsedProgram
 import com.iptvup.app.data.model.EpgEntry
 import com.iptvup.app.data.repository.FavoritesRepository
+import com.iptvup.app.data.repository.HiddenRepository
 import com.iptvup.app.data.repository.RecentRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -18,6 +20,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -32,6 +35,7 @@ class PlayerViewModel @Inject constructor(
     private val channelDao: ChannelDao,
     private val epgDao: EpgDao,
     private val favoritesRepository: FavoritesRepository,
+    private val hiddenRepository: HiddenRepository,
     private val recentRepository: RecentRepository
 ) : ViewModel() {
 
@@ -45,6 +49,9 @@ class PlayerViewModel @Inject constructor(
 
     private val _epg = MutableStateFlow(EpgEntry())
     val epg: StateFlow<EpgEntry> = _epg.asStateFlow()
+
+    private val _epgPrograms = MutableStateFlow<List<EpgProgramEntity>>(emptyList())
+    val epgPrograms: StateFlow<List<EpgProgramEntity>> = _epgPrograms.asStateFlow()
 
     val favorite: StateFlow<Boolean> = _channel
         .filterNotNull()
@@ -81,15 +88,56 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
+    fun changeChannel(direction: Int) {
+        val current = _channel.value ?: return
+        viewModelScope.launch {
+            val hiddenItems = hiddenRepository.observe(current.profileId).first()
+            val hiddenGroups = hiddenItems
+                .filter { it.kind == HiddenRepository.KIND_GROUP }
+                .map { it.itemKey }
+                .toSet()
+            val hiddenChannels = hiddenItems
+                .filter { it.kind == HiddenRepository.KIND_CHANNEL }
+                .map { it.itemKey }
+                .toSet()
+            val groupChannels = channelDao
+                .getForGroup(current.profileId, current.groupName)
+                .filter {
+                    it.groupName !in hiddenGroups && it.channelKey !in hiddenChannels
+                }
+            if (groupChannels.size <= 1) return@launch
+            val currentIndex = groupChannels.indexOfFirst { it.id == current.id }
+            if (currentIndex < 0) return@launch
+            val nextIndex = (currentIndex + direction + groupChannels.size) %
+                groupChannels.size
+            val next = groupChannels[nextIndex]
+            _channel.value = next
+            _loaded.value = true
+            runCatching { recentRepository.record(next) }
+            refreshEpg()
+        }
+    }
+
     private suspend fun refreshEpg() {
         val channel = _channel.value ?: return
-        val epgId = channel.epgChannelId ?: return
+        val epgId = channel.epgChannelId
+        if (epgId == null) {
+            _epg.value = EpgEntry()
+            _epgPrograms.value = emptyList()
+            return
+        }
         val now = System.currentTimeMillis()
         val nowProgram = epgDao.getNow(channel.profileId, epgId, now)
         val nextProgram = epgDao.getNext(channel.profileId, epgId, now)
         _epg.value = EpgEntry(
             now = nowProgram?.toParsedProgram(),
             next = nextProgram?.toParsedProgram()
+        )
+        _epgPrograms.value = epgDao.getForChannel(
+            profileId = channel.profileId,
+            epgId = epgId,
+            from = now - 2 * 60 * 60 * 1000L,
+            to = now + 24 * 60 * 60 * 1000L
         )
     }
 }

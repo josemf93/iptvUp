@@ -19,7 +19,9 @@ Revisión 2: backend Firebase (sin pausas) + actualizaciones in-app sin Play Sto
 - [ ] Crear el proyecto Firebase real y rellenar `google-services.json` / `.env.local`.
 - [ ] Desplegar el panel en Vercel y apuntar `API_BASE_URL` al dominio.
 - [ ] Probar con una lista real y un Android TV físico.
-- [ ] Refresco automático en segundo plano (WorkManager) y edición de perfiles.
+- [x] Sincronización en segundo plano: entrada inmediata con caché y actualización asíncrona al abrir el perfil.
+- [x] Reproductor: guía EPG ampliable, gestos de canal/volumen/brillo y cambio de canal con D-pad en TV.
+- [ ] EPG de respaldo para canales españoles sin `tvg-id`.
 
 ---
 
@@ -246,7 +248,7 @@ android/
 
 - **Una actividad principal** + Navigation Compose; se detecta TV con `uiMode` y se carga el grafo de TV o el de móvil.
 - `minSdk 24`, `targetSdk` actual, `compileSdk` actual.
-- Hilt para inyección de dependencias, Room para caché, DataStore para ajustes, Coil para logos, WorkManager para refrescos.
+- Hilt para inyección de dependencias, Room para caché, DataStore para ajustes, Coil para logos y `SyncManager` para refrescos en segundo plano al entrar al perfil.
 - **Firebase Auth + Firestore SDK** para login y sincronización; OkHttp para descargar M3U/EPG y para la API de credenciales (con User-Agent configurable).
 
 ### 6.2 Pantallas móvil
@@ -313,7 +315,7 @@ Detalles TV imprescindibles:
 - Descarga directa (soporta `.gz` aunque el servidor no mande la cabecera).
 - Parseo streaming con `XmlPullParser`.
 - Room: `programs(channel_id, start, end, title, description)`.
-- Refresco cada 12–24 h con WorkManager + al abrir la app si está obsoleto.
+- Refresco al abrir la app, al entrar al perfil y periódicamente mientras la pantalla está activa.
 - Parrilla Compose: eje temporal + lista de canales con scroll sincronizado; línea de “ahora”; detalle al pulsar.
 
 **Clave de canal** (para favoritos/ocultos estables):

@@ -243,6 +243,8 @@ fun EpgScreen(
             groups = allGroups,
             hiddenGroups = hiddenGroupKeys,
             onToggle = viewModel::toggleGroupHidden,
+            onShowAll = viewModel::showAllGroups,
+            onHideAll = viewModel::hideAllGroups,
             onDismiss = { showGroupsDialog = false }
         )
     }

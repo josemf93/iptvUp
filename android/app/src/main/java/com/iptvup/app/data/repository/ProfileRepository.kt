@@ -43,7 +43,15 @@ class ProfileRepository @Inject constructor(
     suspend fun refreshProfiles() {
         val uid = auth.currentUser?.uid ?: return
         val remoteProfiles = remote.listProfiles(uid)
-        profileDao.upsertAll(remoteProfiles.map(IptvProfile::toEntity))
+        val localProfiles = profileDao.getAll().associateBy { it.id }
+        profileDao.upsertAll(
+            remoteProfiles.map { remoteProfile ->
+                val localLastSync = localProfiles[remoteProfile.id]?.lastSyncedAt
+                remoteProfile.toEntity().copy(
+                    lastSyncedAt = localLastSync ?: remoteProfile.lastSyncedAt
+                )
+            }
+        )
         val remoteIds = remoteProfiles.map { it.id }.toSet()
         profileDao.getAll()
             .filter { it.id !in remoteIds }
