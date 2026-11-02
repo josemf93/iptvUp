@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -38,7 +37,6 @@ import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material.icons.rounded.StarBorder
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -113,15 +111,13 @@ fun LiveScreen(
         }
     }
 
-    BackHandler(enabled = isTv && selectedGroup != null) {
+    BackHandler(enabled = selectedGroup != null) {
         viewModel.setQuery("")
         viewModel.selectGroup(null)
     }
 
-    val showingGroupBrowser = isTv && selectedGroup == null
-    val filtersActive = query.isNotBlank() ||
-        (!isTv && selectedGroup != null) ||
-        (isTv && selectedGroup != null)
+    val showingGroupBrowser = selectedGroup == null
+    val filtersActive = query.isNotBlank() || selectedGroup != null
 
     Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -177,7 +173,7 @@ fun LiveScreen(
                     )
                 }
 
-                if (isTv && selectedGroup != null) {
+                if (selectedGroup != null) {
                     Spacer(Modifier.height(8.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         IconButton(
@@ -217,7 +213,7 @@ fun LiveScreen(
                     onQueryChange = viewModel::setQuery
                 )
 
-                if (isTv && selectedGroup == null) {
+                if (selectedGroup == null) {
                     Spacer(Modifier.height(10.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
@@ -237,43 +233,6 @@ fun LiveScreen(
                     }
                 }
 
-                if (!isTv) {
-                    Spacer(Modifier.height(10.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        LazyRow(
-                            modifier = Modifier.weight(1f),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            item {
-                                FilterChip(
-                                    selected = selectedGroup == null,
-                                    onClick = { viewModel.selectGroup(null) },
-                                    label = { Text("Todos") }
-                                )
-                            }
-                            items(groups, key = { it }) { group ->
-                                FilterChip(
-                                    selected = selectedGroup == group,
-                                    onClick = { viewModel.selectGroup(group) },
-                                    label = {
-                                        Text(
-                                            text = group,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                    }
-                                )
-                            }
-                        }
-                        IconButton(onClick = { showGroupsDialog = true }) {
-                            Icon(
-                                imageVector = Icons.Rounded.Tune,
-                                contentDescription = "Gestionar grupos",
-                                tint = TextSecondary
-                            )
-                        }
-                    }
-                }
             }
 
             HorizontalDivider(color = SurfaceElevated)
@@ -317,9 +276,10 @@ fun LiveScreen(
                         )
                     }
                 } else {
-                    TvGroupGrid(
+                    GroupGrid(
                         groups = visibleGroups,
                         counts = groupCounts,
+                        isTv = isTv,
                         onSelect = { group ->
                             viewModel.setQuery("")
                             viewModel.selectGroup(group)
@@ -342,14 +302,14 @@ fun LiveScreen(
                         },
                         actionLabel = when {
                             query.isNotBlank() -> "Quitar búsqueda"
-                            isTv && selectedGroup != null -> "Volver a grupos"
+                            selectedGroup != null -> "Volver a grupos"
                             filtersActive -> "Quitar filtros"
                             else -> "Actualizar lista"
                         },
                         onAction = {
                             when {
                                 query.isNotBlank() -> viewModel.setQuery("")
-                                isTv && selectedGroup != null -> viewModel.selectGroup(null)
+                                selectedGroup != null -> viewModel.selectGroup(null)
                                 filtersActive -> {
                                     viewModel.setQuery("")
                                     viewModel.selectGroup(null)
@@ -415,13 +375,14 @@ private fun ChannelSearchField(
 }
 
 @Composable
-private fun TvGroupGrid(
+private fun GroupGrid(
     groups: List<String>,
     counts: Map<String, Int>,
+    isTv: Boolean,
     onSelect: (String) -> Unit
 ) {
     LazyVerticalGrid(
-        columns = GridCells.Adaptive(minSize = 220.dp),
+        columns = GridCells.Adaptive(minSize = if (isTv) 220.dp else 150.dp),
         contentPadding = PaddingValues(20.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),

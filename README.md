@@ -14,7 +14,7 @@ Reproductor IPTV privado para **Android** y **Android TV**, con perfiles sincron
 - Perfiles IPTV en la nube: **M3U** o **Xtream Codes**.
 - Lista de canales por grupos, búsqueda, favoritos y ocultación de grupos.
 - **Iconos de perfil personalizables**: toca el avatar de cada lista para elegir entre varios iconos.
-- En **Android TV**, la pestaña TV muestra primero los grupos como tarjetas con icono; al entrar en un grupo aparece su lista de canales con botón de volver.
+- En **móvil y Android TV**, la pestaña TV muestra primero los grupos como tarjetas con icono; al entrar en un grupo aparece su lista de canales con botón de volver.
 - **Sincronización diaria**: al entrar en un perfil usa la caché y solo descarga lista/EPG si han pasado 24 horas o si pulsas actualizar.
 - **EPG solo de grupos visibles**: no se guardan programas de grupos ocultos.
 - **Deduplicación de canales**: elimina repetidos de la misma calidad y conserva 4K/FHD/HD/SD como entradas separadas, con su etiqueta visible.
