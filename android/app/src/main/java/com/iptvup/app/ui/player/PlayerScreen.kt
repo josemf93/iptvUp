@@ -3,10 +3,12 @@ package com.iptvup.app.ui.player
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
+import android.content.pm.ActivityInfo
 import android.view.WindowManager
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -58,6 +60,11 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
@@ -107,8 +114,9 @@ fun PlayerScreen(
     var playerError by remember { mutableStateOf<String?>(null) }
     var controlsVisible by remember { mutableStateOf(true) }
     var interactionTick by remember { mutableIntStateOf(0) }
-    var isImmersive by remember { mutableStateOf(true) }
+    var isFullscreen by remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
+    val surfaceFocusRequester = remember { FocusRequester() }
     val view = LocalView.current
 
     val player = remember {
@@ -158,11 +166,16 @@ fun PlayerScreen(
         }
     }
 
-    DisposableEffect(isImmersive, activity) {
+    DisposableEffect(isFullscreen, activity) {
         val window = activity?.window
+        activity?.requestedOrientation = if (isFullscreen) {
+            ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        } else {
+            ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+        }
         if (window != null) {
             val controller = WindowCompat.getInsetsController(window, view)
-            if (isImmersive) {
+            if (isFullscreen) {
                 controller.hide(WindowInsetsCompat.Type.systemBars())
                 controller.systemBarsBehavior =
                     WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
@@ -171,6 +184,7 @@ fun PlayerScreen(
             }
         }
         onDispose {
+            activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
             if (window != null) {
                 WindowCompat.getInsetsController(window, view)
                     .show(WindowInsetsCompat.Type.systemBars())
@@ -185,12 +199,17 @@ fun PlayerScreen(
         }
     }
 
+    LaunchedEffect(controlsVisible, channel?.id) {
+        if (controlsVisible && channel != null) {
+            runCatching { focusRequester.requestFocus() }
+        } else if (!controlsVisible) {
+            runCatching { surfaceFocusRequester.requestFocus() }
+        }
+    }
+
     LaunchedEffect(channel?.id) {
         controlsVisible = true
         interactionTick++
-        if (channel != null) {
-            runCatching { focusRequester.requestFocus() }
-        }
     }
 
     BackHandler(onBack = onBack)
@@ -199,6 +218,22 @@ fun PlayerScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black)
+            .onPreviewKeyEvent { event ->
+                if (event.key == Key.Back) {
+                    false
+                } else if (event.type == KeyEventType.KeyDown) {
+                    if (!controlsVisible) {
+                        controlsVisible = true
+                        interactionTick++
+                        true
+                    } else {
+                        interactionTick++
+                        false
+                    }
+                } else {
+                    false
+                }
+            }
     ) {
         if (channel == null) {
             if (!loaded) {
@@ -239,6 +274,8 @@ fun PlayerScreen(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
+                    .focusRequester(surfaceFocusRequester)
+                    .focusable()
                     .pointerInput(Unit) {
                         detectTapGestures(
                             onTap = {
@@ -291,27 +328,6 @@ fun PlayerScreen(
                                 color = Color.White.copy(alpha = 0.65f),
                                 style = MaterialTheme.typography.labelSmall,
                                 maxLines = 1
-                            )
-                        }
-                        IconButton(
-                            onClick = {
-                                isImmersive = !isImmersive
-                                controlsVisible = true
-                                interactionTick++
-                            }
-                        ) {
-                            Icon(
-                                imageVector = if (isImmersive) {
-                                    Icons.Rounded.FullscreenExit
-                                } else {
-                                    Icons.Rounded.Fullscreen
-                                },
-                                contentDescription = if (isImmersive) {
-                                    "Salir de pantalla completa"
-                                } else {
-                                    "Pantalla completa"
-                                },
-                                tint = Color.White
                             )
                         }
                         IconButton(
@@ -426,39 +442,63 @@ fun PlayerScreen(
                         )
                         .padding(horizontal = 20.dp, vertical = 18.dp)
                 ) {
-                    Column {
-                        Text(
-                            text = epg.now?.title ?: "Sin información de EPG",
-                            color = Color.White,
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.SemiBold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        epg.now?.let { now ->
-                            Spacer(Modifier.height(6.dp))
-                            LinearProgressIndicator(
-                                progress = {
-                                    progressFraction(
-                                        now = System.currentTimeMillis(),
-                                        start = now.startMs,
-                                        end = now.endMs
-                                    )
-                                },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(3.dp),
-                                color = Accent,
-                                trackColor = SurfaceElevated
-                            )
-                            Spacer(Modifier.height(6.dp))
+                    Row(verticalAlignment = Alignment.Bottom) {
+                        Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "${formatTime(now.startMs)} - ${formatTime(now.endMs)}" +
-                                    (epg.next?.let { "  ·  Después: ${it.title}" } ?: ""),
-                                color = Color.White.copy(alpha = 0.65f),
-                                style = MaterialTheme.typography.labelSmall,
+                                text = epg.now?.title ?: "Sin información de EPG",
+                                color = Color.White,
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.SemiBold,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
+                            )
+                            epg.now?.let { now ->
+                                Spacer(Modifier.height(6.dp))
+                                LinearProgressIndicator(
+                                    progress = {
+                                        progressFraction(
+                                            now = System.currentTimeMillis(),
+                                            start = now.startMs,
+                                            end = now.endMs
+                                        )
+                                    },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(3.dp),
+                                    color = Accent,
+                                    trackColor = SurfaceElevated
+                                )
+                                Spacer(Modifier.height(6.dp))
+                                Text(
+                                    text = "${formatTime(now.startMs)} - ${formatTime(now.endMs)}" +
+                                        (epg.next?.let { "  ·  Después: ${it.title}" } ?: ""),
+                                    color = Color.White.copy(alpha = 0.65f),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                        IconButton(
+                            onClick = {
+                                isFullscreen = !isFullscreen
+                                controlsVisible = true
+                                interactionTick++
+                            },
+                            modifier = Modifier.padding(start = 8.dp, bottom = 4.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (isFullscreen) {
+                                    Icons.Rounded.FullscreenExit
+                                } else {
+                                    Icons.Rounded.Fullscreen
+                                },
+                                contentDescription = if (isFullscreen) {
+                                    "Salir de pantalla completa"
+                                } else {
+                                    "Pantalla completa"
+                                },
+                                tint = Color.White
                             )
                         }
                     }
