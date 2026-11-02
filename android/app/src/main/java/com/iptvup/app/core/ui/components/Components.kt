@@ -99,7 +99,7 @@ fun BrandLogo(modifier: Modifier = Modifier, showName: Boolean = true) {
         if (showName) {
             Spacer(Modifier.width(12.dp))
             Text(
-                text = "IptvUp",
+                text = "IPTVUp",
                 color = TextPrimary,
                 fontSize = 24.sp,
                 fontWeight = FontWeight.Bold

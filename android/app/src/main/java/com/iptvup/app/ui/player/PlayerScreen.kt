@@ -94,7 +94,7 @@ fun PlayerScreen(
 
     val player = remember {
         val dataSourceFactory = DefaultHttpDataSource.Factory()
-            .setUserAgent("IptvUp/0.1")
+            .setUserAgent("IPTVUp/0.3")
             .setAllowCrossProtocolRedirects(true)
         val mediaSourceFactory = DefaultMediaSourceFactory(dataSourceFactory)
         ExoPlayer.Builder(context, mediaSourceFactory).build().apply {

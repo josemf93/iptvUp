@@ -337,7 +337,7 @@ fun SettingsScreen(
         SettingsCard {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = "IptvUp",
+                    text = "IPTVUp",
                     color = TextPrimary,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,

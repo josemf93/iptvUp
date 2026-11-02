@@ -42,7 +42,7 @@ object AppModule {
             chain.proceed(
                 chain.request()
                     .newBuilder()
-                    .header("User-Agent", "IptvUp/0.1 (Android)")
+                    .header("User-Agent", "IPTVUp/0.3 (Android)")
                     .build()
             )
         }

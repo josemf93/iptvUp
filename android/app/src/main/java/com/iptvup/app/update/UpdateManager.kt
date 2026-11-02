@@ -162,7 +162,7 @@ class UpdateManager @Inject constructor(
 
             if (!hasSameSignature(target)) {
                 target.delete()
-                error("El APK descargado no tiene la misma firma que IptvUp")
+                error("El APK descargado no tiene la misma firma que IPTVUp")
             }
 
             pendingApk = target
@@ -185,7 +185,7 @@ class UpdateManager @Inject constructor(
             ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             context.startActivity(intent)
             _state.value = UpdateState.Error(
-                "Activa \"Instalar apps desconocidas\" para IptvUp y vuelve a pulsar Actualizar"
+                "Activa \"Instalar apps desconocidas\" para IPTVUp y vuelve a pulsar Actualizar"
             )
             return
         }
