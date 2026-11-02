@@ -1,8 +1,8 @@
 {
-  "versionCode": 3,
-  "versionName": "0.3.0",
-  "apkUrl": "https://github.com/josemf93/iptvUp/releases/download/v0.3.0/IPTVUp-v0.3.0.apk",
-  "sha256": "7b45e742e297bce50dce59eb50660b9bd3d6981a013bd69801fd57a88fc3c497",
+  "versionCode": 4,
+  "versionName": "0.4.0",
+  "apkUrl": "https://github.com/josemf93/iptvUp/releases/download/v0.4.0/IPTVUp-v0.4.0.apk",
+  "sha256": "51061a8c75f34b5f68bd883aabadb6350cea8df26fac4ea4f5f6ba475af917b3",
   "minSupportedVersionCode": 1,
-  "notes": "Prueba del actualizador in-app. La app ahora se llama IPTVUp y el APK del Release se llama IPTVUp-v0.3.0.apk."
+  "notes": "Reproductor: controles con auto-ocultado, botón de pantalla completa e insets para móviles con notch. Ajustes: aviso de app actualizada con check verde y botón de actualización cuando hay versión nueva."
 }
