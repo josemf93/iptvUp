@@ -1,8 +1,8 @@
 {
-  "versionCode": 11,
-  "versionName": "0.8.1",
-  "apkUrl": "https://github.com/josemf93/iptvUp/releases/download/v0.8.1/IPTVUp-v0.8.1.apk",
-  "sha256": "2d692f5381108ef015ca4d4c0fd456da63a9e1f22322281cc103355375dd6f0b",
+  "versionCode": 12,
+  "versionName": "0.8.2",
+  "apkUrl": "https://github.com/josemf93/iptvUp/releases/download/v0.8.2/IPTVUp-v0.8.2.apk",
+  "sha256": "1472524679d32eac984b555099e4d406d1adf2bf1e1971d99fbfd815fd6972bf",
   "minSupportedVersionCode": 1,
-  "notes": "Actualización filtrada por grupos visibles con opción manual de actualizar todo, EPG de respaldo para España desde epgshare (por nombre e ID), tarjeta de eventos deportivos con acceso al canal, buscador por icono en TV/Guía, sin filtro de duplicados, arranque en el último perfil y limpieza de APKs antiguos."
+  "notes": "Eventos deportivos solo de fútbol con prioridad 4K/1080/720/SD y canales visibles sin ##. Nombres de canal con más espacio, EPG sin programas duplicados/solapados, carga sin parpadeos y Guía sin iconos de filtro/actualizar (usa los mismos grupos y canales que TV)."
 }
