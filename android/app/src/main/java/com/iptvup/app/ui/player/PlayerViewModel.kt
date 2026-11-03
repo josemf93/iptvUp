@@ -9,6 +9,7 @@ import com.iptvup.app.data.local.EpgDao
 import com.iptvup.app.data.local.EpgProgramEntity
 import com.iptvup.app.data.local.toParsedProgram
 import com.iptvup.app.data.local.dedupePrograms
+import com.iptvup.app.data.identity.ChannelQuality
 import com.iptvup.app.data.model.EpgEntry
 import com.iptvup.app.data.repository.FavoritesRepository
 import com.iptvup.app.data.repository.HiddenRepository
@@ -54,6 +55,12 @@ class PlayerViewModel @Inject constructor(
     private val _epgPrograms = MutableStateFlow<List<EpgProgramEntity>>(emptyList())
     val epgPrograms: StateFlow<List<EpgProgramEntity>> = _epgPrograms.asStateFlow()
 
+    private val _canFallback = MutableStateFlow(false)
+    val canFallback: StateFlow<Boolean> = _canFallback.asStateFlow()
+
+    private var fallbackCandidates: List<ChannelEntity> = emptyList()
+    private val attemptedFallbacks = mutableSetOf<String>()
+
     val favorite: StateFlow<Boolean> = _channel
         .filterNotNull()
         .flatMapLatest { channel ->
@@ -74,6 +81,7 @@ class PlayerViewModel @Inject constructor(
             _loaded.value = true
             if (channel != null) {
                 runCatching { recentRepository.record(channel) }
+                prepareFallbacks(channel)
             }
             while (isActive) {
                 refreshEpg()
@@ -110,8 +118,68 @@ class PlayerViewModel @Inject constructor(
             val next = groupChannels[nextIndex]
             _channel.value = next
             _loaded.value = true
+            prepareFallbacks(next)
             runCatching { recentRepository.record(next) }
             refreshEpg()
+        }
+    }
+
+    fun fallbackToNext(): Boolean {
+        val next = fallbackCandidates.firstOrNull {
+            it.id !in attemptedFallbacks
+        } ?: run {
+            _canFallback.value = false
+            return false
+        }
+        attemptedFallbacks += next.id
+        _channel.value = next
+        _loaded.value = true
+        _canFallback.value = fallbackCandidates.any { it.id !in attemptedFallbacks }
+        viewModelScope.launch {
+            runCatching { recentRepository.record(next) }
+            refreshEpg()
+        }
+        return true
+    }
+
+    private fun prepareFallbacks(channel: ChannelEntity) {
+        viewModelScope.launch {
+            fallbackCandidates = emptyList()
+            attemptedFallbacks.clear()
+            _canFallback.value = false
+
+            val baseName = ChannelQuality.baseName(channel.name)
+                .trim()
+                .lowercase()
+            if (baseName.isBlank()) return@launch
+
+            val hiddenGroups = runCatching {
+                hiddenRepository.observe(channel.profileId).first()
+            }.getOrDefault(emptyList())
+                .filter { it.kind == HiddenRepository.KIND_GROUP }
+                .map { it.itemKey }
+                .toSet()
+
+            fallbackCandidates = channelDao.observeAll(channel.profileId).first()
+                .asSequence()
+                .filter { it.id != channel.id }
+                .filter { it.streamUrl != channel.streamUrl }
+                .filter { it.groupName !in hiddenGroups }
+                .filter { !ChannelQuality.isJunkChannel(it.name) }
+                .filter { ChannelQuality.label(it.name) != "8K" }
+                .filter {
+                    ChannelQuality.baseName(it.name).trim().lowercase() == baseName
+                }
+                .sortedWith(
+                    compareByDescending<ChannelEntity> {
+                        it.groupName == channel.groupName
+                    }.thenByDescending {
+                        ChannelQuality.sportsRank(it.name)
+                    }
+                )
+                .toList()
+            attemptedFallbacks += channel.id
+            _canFallback.value = fallbackCandidates.isNotEmpty()
         }
     }
 

@@ -125,6 +125,7 @@ fun PlayerScreen(
     val epg by viewModel.epg.collectAsStateWithLifecycle()
     val epgPrograms by viewModel.epgPrograms.collectAsStateWithLifecycle()
     val favorite by viewModel.favorite.collectAsStateWithLifecycle()
+    val canFallback by viewModel.canFallback.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val activity = remember(context) { context.findActivity() }
 
@@ -137,6 +138,9 @@ fun PlayerScreen(
     var epgExpanded by remember { mutableStateOf(false) }
     var gestureHint by remember { mutableStateOf<String?>(null) }
     var gestureHintTick by remember { mutableIntStateOf(0) }
+    var userPaused by remember { mutableStateOf(false) }
+    var showConnecting by remember { mutableStateOf(false) }
+    var connectionCountdown by remember { mutableIntStateOf(0) }
     val pipMode by PipState.isInPip.collectAsStateWithLifecycle()
     val focusRequester = remember { FocusRequester() }
     val surfaceFocusRequester = remember { FocusRequester() }
@@ -184,6 +188,7 @@ fun PlayerScreen(
         val listener = object : Player.Listener {
             override fun onIsPlayingChanged(playing: Boolean) {
                 isPlaying = playing
+                if (playing) userPaused = false
             }
 
             override fun onPlaybackStateChanged(playbackState: Int) {
@@ -315,7 +320,49 @@ fun PlayerScreen(
 
     LaunchedEffect(channel?.id) {
         controlsVisible = true
+        userPaused = false
+        showConnecting = false
+        connectionCountdown = 0
         interactionTick++
+    }
+
+    LaunchedEffect(channel?.id, isPlaying, userPaused, canFallback, playerError) {
+        if (isPlaying || userPaused) {
+            showConnecting = false
+            connectionCountdown = 0
+            return@LaunchedEffect
+        }
+
+        delay(10_000L)
+        if (isPlaying || userPaused) {
+            showConnecting = false
+            connectionCountdown = 0
+            return@LaunchedEffect
+        }
+
+        showConnecting = true
+        if (canFallback) {
+            for (remaining in 5 downTo 1) {
+                connectionCountdown = remaining
+                delay(1_000L)
+                if (isPlaying || userPaused) {
+                    showConnecting = false
+                    connectionCountdown = 0
+                    return@LaunchedEffect
+                }
+            }
+            connectionCountdown = 0
+            showConnecting = false
+            if (!viewModel.fallbackToNext()) {
+                playerError = playerError ?: "No se pudo reproducir el canal"
+            }
+        } else {
+            delay(5_000L)
+            if (!isPlaying && !userPaused) {
+                playerError = playerError ?: "No se pudo reproducir el canal"
+            }
+            showConnecting = false
+        }
     }
 
     BackHandler {
@@ -585,7 +632,13 @@ fun PlayerScreen(
                         .background(Color.Black.copy(alpha = 0.48f))
                         .focusRequester(focusRequester)
                         .clickable {
-                            if (player.isPlaying) player.pause() else player.play()
+                            if (player.isPlaying) {
+                                player.pause()
+                                userPaused = true
+                            } else {
+                                player.play()
+                                userPaused = false
+                            }
                             controlsVisible = true
                             interactionTick++
                         },
@@ -600,7 +653,7 @@ fun PlayerScreen(
                 }
             }
 
-            if (buffering && playerError == null) {
+            if (buffering && playerError == null && !showConnecting) {
                 CircularProgressIndicator(
                     modifier = Modifier.align(Alignment.Center),
                     color = Color.White
@@ -608,6 +661,50 @@ fun PlayerScreen(
             }
 
             playerError?.let { message ->
+                if (!showConnecting && (!canFallback || userPaused)) {
+                    Card(
+                        modifier = Modifier
+                            .align(Alignment.Center)
+                            .padding(24.dp),
+                        colors = CardDefaults.cardColors(containerColor = SurfaceDark)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(20.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = "No se pudo reproducir",
+                                color = TextPrimary,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Spacer(Modifier.height(6.dp))
+                            Text(
+                                text = message,
+                                color = Danger,
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                            Spacer(Modifier.height(14.dp))
+                            Button(
+                                onClick = {
+                                    playerError = null
+                                    userPaused = false
+                                    showConnecting = false
+                                    connectionCountdown = 0
+                                    player.prepare()
+                                    player.playWhenReady = true
+                                    controlsVisible = true
+                                    interactionTick++
+                                }
+                            ) {
+                                Text("Reintentar")
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (showConnecting && !pipMode) {
                 Card(
                     modifier = Modifier
                         .align(Alignment.Center)
@@ -618,29 +715,39 @@ fun PlayerScreen(
                         modifier = Modifier.padding(20.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(28.dp),
+                            color = Primary,
+                            strokeWidth = 3.dp
+                        )
+                        Spacer(Modifier.height(10.dp))
                         Text(
-                            text = "No se pudo reproducir",
+                            text = "Intentando conectar...",
                             color = TextPrimary,
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.SemiBold
                         )
-                        Spacer(Modifier.height(6.dp))
-                        Text(
-                            text = message,
-                            color = Danger,
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                        Spacer(Modifier.height(14.dp))
-                        Button(
-                            onClick = {
-                                playerError = null
-                                player.prepare()
-                                player.playWhenReady = true
-                                controlsVisible = true
-                                interactionTick++
-                            }
-                        ) {
-                            Text("Reintentar")
+                        Spacer(Modifier.height(4.dp))
+                        if (canFallback) {
+                            Text(
+                                text = "Cambiando al siguiente canal en " +
+                                    "${connectionCountdown}s",
+                                color = TextSecondary,
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            LinearProgressIndicator(
+                                progress = { connectionCountdown / 5f },
+                                modifier = Modifier.fillMaxWidth(),
+                                color = Primary,
+                                trackColor = SurfaceElevated
+                            )
+                        } else {
+                            Text(
+                                text = "Esperando respuesta del canal...",
+                                color = TextSecondary,
+                                style = MaterialTheme.typography.bodySmall
+                            )
                         }
                     }
                 }

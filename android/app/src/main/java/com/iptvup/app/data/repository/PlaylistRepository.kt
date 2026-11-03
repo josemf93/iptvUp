@@ -47,25 +47,13 @@ class PlaylistRepository @Inject constructor(
         profile: IptvProfile,
         credentials: ProfileCredentials,
         hiddenGroups: Set<String> = emptySet(),
-        fullSync: Boolean = true,
         onStatus: (String) -> Unit = {}
     ): Result<Unit> = withContext(Dispatchers.IO) {
         try {
-            val cachedChannels = channelDao.count(profile.id)
-            val effectiveFullSync = fullSync ||
-                (cachedChannels == 0 && hiddenGroups.isEmpty())
-            val excludedGroups = if (effectiveFullSync) emptySet() else hiddenGroups
-            onStatus(
-                if (effectiveFullSync) {
-                    "Actualizando todos los canales..."
-                } else {
-                    "Actualizando grupos visibles..."
-                }
-            )
-
+            onStatus("Actualizando todos los canales...")
             val discoveredEpg = when (profile.kind) {
-                ProfileKind.M3U -> syncM3u(profile, credentials, excludedGroups, onStatus)
-                ProfileKind.XTREAM -> syncXtream(profile, credentials, excludedGroups, onStatus)
+                ProfileKind.M3U -> syncM3u(profile, credentials, onStatus)
+                ProfileKind.XTREAM -> syncXtream(profile, credentials, onStatus)
             }
 
             val epgUrl = profile.epgUrl?.takeIf { it.isNotBlank() }
@@ -83,7 +71,7 @@ class PlaylistRepository @Inject constructor(
                 }
                 epgDao.deleteByProfile(profile.id)
                 try {
-                    syncEpg(profile, epgUrl, excludedGroups, onStatus)
+                    syncEpg(profile, epgUrl, hiddenGroups, onStatus)
                 } catch (exception: CancellationException) {
                     throw exception
                 } catch (exception: Exception) {
@@ -95,7 +83,7 @@ class PlaylistRepository @Inject constructor(
             }
 
             try {
-                syncFallbackEpg(profile, excludedGroups, onStatus)
+                syncFallbackEpg(profile, hiddenGroups, onStatus)
             } catch (exception: CancellationException) {
                 throw exception
             } catch (exception: Exception) {
@@ -115,7 +103,6 @@ class PlaylistRepository @Inject constructor(
     private suspend fun syncM3u(
         profile: IptvProfile,
         credentials: ProfileCredentials,
-        excludedGroups: Set<String>,
         onStatus: (String) -> Unit
     ): String? {
         val url = credentials.m3uUrl?.takeIf { it.isNotBlank() }
@@ -124,48 +111,26 @@ class PlaylistRepository @Inject constructor(
         val file = downloadToCache(url, "m3u_${profile.id}_")
         return try {
             if (file.length() == 0L) error("La lista M3U está vacía")
-            val replaceAfterParse = excludedGroups.isNotEmpty()
-            val collected = if (replaceAfterParse) {
-                ArrayList<com.iptvup.app.data.local.ChannelEntity>(1024)
-            } else {
-                null
-            }
-            if (!replaceAfterParse) {
-                channelDao.deleteByProfile(profile.id)
-            }
+            channelDao.deleteByProfile(profile.id)
             var count = 0
             val batch = ArrayList<com.iptvup.app.data.local.ChannelEntity>(500)
             var epgUrl: String? = null
             maybeGzip(file.inputStream()).bufferedReader().use { reader ->
-                val result = m3uParser.parse(reader, excludedGroups) { parsed ->
+                val result = m3uParser.parse(reader) { parsed ->
                     if (ChannelQuality.isJunkChannel(parsed.name)) return@parse
                     val entity = parsed.toEntity(profile.id)
+                    batch += entity
                     count++
-                    if (collected != null) {
-                        collected += entity
-                        if (count % 500 == 0) onStatus("Canales visibles: $count")
-                    } else {
-                        batch += entity
-                        if (batch.size >= 500) {
-                            channelDao.upsertAll(batch)
-                            batch.clear()
-                            onStatus("Canales: $count")
-                        }
+                    if (batch.size >= 500) {
+                        channelDao.upsertAll(batch)
+                        batch.clear()
+                        onStatus("Canales: $count")
                     }
                 }
                 epgUrl = result.epgUrl
             }
-            if (collected != null) {
-                channelDao.deleteByProfile(profile.id)
-                collected.chunked(500).forEach { chunk ->
-                    channelDao.upsertAll(chunk)
-                }
-            } else if (batch.isNotEmpty()) {
-                channelDao.upsertAll(batch)
-            }
-            onStatus(
-                if (excludedGroups.isEmpty()) "$count canales" else "$count canales visibles"
-            )
+            if (batch.isNotEmpty()) channelDao.upsertAll(batch)
+            onStatus("$count canales")
             epgUrl
         } finally {
             file.delete()
@@ -175,7 +140,6 @@ class PlaylistRepository @Inject constructor(
     private suspend fun syncXtream(
         profile: IptvProfile,
         credentials: ProfileCredentials,
-        excludedGroups: Set<String>,
         onStatus: (String) -> Unit
     ): String? {
         if (credentials.xtreamHost.isNullOrBlank() ||
@@ -186,35 +150,15 @@ class PlaylistRepository @Inject constructor(
         }
         onStatus("Conectando con Xtream...")
         val categories = xtreamClient.liveCategories(credentials)
-        val selectedCategories = if (excludedGroups.isEmpty()) {
-            categories
-        } else {
-            categories.filterValues { it !in excludedGroups }
-        }
-        if (selectedCategories.isEmpty()) {
-            channelDao.deleteByProfile(profile.id)
-            onStatus("Sin grupos visibles")
-            return xtreamClient.epgUrl(credentials)
-        }
-
         onStatus("Descargando canales...")
-        val categoryIds = if (excludedGroups.isEmpty()) null else selectedCategories.keys
-        val channels = xtreamClient
-            .liveStreams(credentials, categories, categoryIds)
-            .filter { it.groupName !in excludedGroups }
+        val channels = xtreamClient.liveStreams(credentials, categories)
 
         channelDao.deleteByProfile(profile.id)
         channels.chunked(500).forEachIndexed { index, chunk ->
             channelDao.upsertAll(chunk.map { it.toEntity(profile.id) })
             onStatus("Canales: ${minOf((index + 1) * 500, channels.size)}")
         }
-        onStatus(
-            if (excludedGroups.isEmpty()) {
-                "${channels.size} canales"
-            } else {
-                "${channels.size} canales visibles"
-            }
-        )
+        onStatus("${channels.size} canales")
         return xtreamClient.epgUrl(credentials)
     }
 

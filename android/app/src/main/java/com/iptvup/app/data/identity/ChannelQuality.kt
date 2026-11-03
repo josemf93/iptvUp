@@ -20,7 +20,7 @@ object ChannelQuality {
      * 8K/4K > 1080/FHD > 720/HD > SD > sin calidad conocida.
      */
     fun sportsRank(name: String): Int = when (detect(name)) {
-        "8K" -> 5
+        "8K" -> 0
         "4K" -> 4
         "FHD" -> 3
         "HD" -> 2

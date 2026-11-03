@@ -44,7 +44,8 @@ fun GroupGrid(
     groups: List<String>,
     counts: Map<String, Int>,
     minCardWidth: Dp,
-    onSelect: (String) -> Unit
+    onSelect: (String) -> Unit,
+    onLongClick: (String) -> Unit = {}
 ) {
     LazyVerticalGrid(
         columns = GridCells.Adaptive(minSize = minCardWidth),
@@ -56,6 +57,7 @@ fun GroupGrid(
         items(groups, key = { it }) { group ->
             FocusableCard(
                 onClick = { onSelect(group) },
+                onLongClick = { onLongClick(group) },
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(18.dp)) {

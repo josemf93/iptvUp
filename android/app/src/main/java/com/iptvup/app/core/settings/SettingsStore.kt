@@ -10,6 +10,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import org.json.JSONArray
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -41,6 +42,26 @@ class SettingsStore @Inject constructor(
                 null
             }
         }.toMap()
+    }
+
+    fun groupOrder(profileId: String): Flow<List<String>> =
+        context.settingsDataStore.data.map { preferences ->
+            val raw = preferences[groupOrderKey(profileId)] ?: return@map emptyList()
+            runCatching {
+                val array = JSONArray(raw)
+                buildList {
+                    for (index in 0 until array.length()) {
+                        val value = array.optString(index)
+                        if (value.isNotBlank()) add(value)
+                    }
+                }
+            }.getOrDefault(emptyList())
+        }
+
+    suspend fun setGroupOrder(profileId: String, groups: List<String>) {
+        context.settingsDataStore.edit { preferences ->
+            preferences[groupOrderKey(profileId)] = JSONArray(groups).toString()
+        }
     }
 
     suspend fun getActiveProfileId(): String? =
@@ -82,6 +103,9 @@ class SettingsStore @Inject constructor(
 
     private fun profileIconKey(profileId: String) =
         stringPreferencesKey("$PROFILE_ICON_PREFIX$profileId")
+
+    private fun groupOrderKey(profileId: String) =
+        stringPreferencesKey("group_order_$profileId")
 
     private companion object {
         const val PROFILE_ICON_PREFIX = "profile_icon_"

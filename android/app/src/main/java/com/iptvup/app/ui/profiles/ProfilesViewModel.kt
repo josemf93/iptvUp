@@ -59,8 +59,8 @@ class ProfilesViewModel @Inject constructor(
         viewModelScope.launch {
             error = null
             profileRepository.selectProfile(profile.id)
-            // Entra inmediatamente: si toca actualizar, sigue en segundo plano.
-            syncManager.sync(profile.id)
+            // Entra inmediatamente. Solo descarga si el perfil no tiene canales cacheados.
+            syncManager.syncIfEmpty(profile.id)
             navigateTo = profile.id
         }
     }

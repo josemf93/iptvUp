@@ -38,44 +38,33 @@ class SyncManager @Inject constructor(
     private var job: Job? = null
     private var activeProfileId: String? = null
 
-    fun sync(profileId: String, force: Boolean = false, fullSync: Boolean = false) {
+    fun sync(profileId: String) = startSync(profileId, onlyIfEmpty = false)
+
+    fun syncIfEmpty(profileId: String) = startSync(profileId, onlyIfEmpty = true)
+
+    private fun startSync(profileId: String, onlyIfEmpty: Boolean) {
         if (job?.isActive == true && activeProfileId == profileId) return
 
         job?.cancel()
         activeProfileId = profileId
         job = scope.launch {
+            if (onlyIfEmpty && channelDao.count(profileId) > 0) return@launch
+
             val profile = profileRepository.getById(profileId)
             if (profile == null) {
                 _state.value = SyncState.Error(profileId, "Perfil no encontrado")
                 return@launch
             }
 
-            runCatching { hiddenRepository.refresh(profileId) }
-            val hiddenGroups = hiddenRepository.getHiddenGroups(profileId)
-            if (!fullSync && hiddenGroups.isNotEmpty()) {
-                // Los grupos ocultos no se guardan: así el arranque carga solo lo visible.
-                hiddenGroups.chunked(400).forEach { chunk ->
-                    channelDao.deleteByGroups(profileId, chunk)
-                }
-            }
-
-            val lastSync = profile.lastSyncedAt
-            if (!force && lastSync != null &&
-                System.currentTimeMillis() - lastSync < DAY_MS
-            ) {
-                // Ya se actualizó hoy: se usa la caché y no se vuelve a descargar.
-                _state.value = SyncState.Idle
-                return@launch
-            }
-
             _state.value = SyncState.Running(profileId, "Preparando...")
             try {
+                runCatching { hiddenRepository.refresh(profileId) }
+                val hiddenGroups = hiddenRepository.getHiddenGroups(profileId)
                 val credentials = profileRepository.getCredentials(profile)
                 playlistRepository.sync(
                     profile = profile,
                     credentials = credentials,
-                    hiddenGroups = hiddenGroups,
-                    fullSync = fullSync
+                    hiddenGroups = hiddenGroups
                 ) { status ->
                     _state.value = SyncState.Running(profileId, status)
                 }.onSuccess {
@@ -102,9 +91,5 @@ class SyncManager @Inject constructor(
         if (current is SyncState.Error && current.profileId == profileId) {
             _state.value = SyncState.Idle
         }
-    }
-
-    private companion object {
-        const val DAY_MS = 24 * 60 * 60 * 1000L
     }
 }

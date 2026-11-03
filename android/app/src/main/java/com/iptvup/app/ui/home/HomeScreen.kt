@@ -43,7 +43,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.iptvup.app.core.ui.components.FocusableCard
 import com.iptvup.app.core.ui.components.QualityBadge
-import com.iptvup.app.core.ui.components.SyncOptionsDialog
 import com.iptvup.app.core.ui.theme.Accent
 import com.iptvup.app.core.ui.theme.Primary
 import com.iptvup.app.core.ui.theme.SurfaceDark
@@ -66,7 +65,6 @@ fun HomeScreen(
     val sportsEvents by viewModel.sportsEvents.collectAsStateWithLifecycle()
     val sportsLoading by viewModel.sportsLoading.collectAsStateWithLifecycle()
     val syncing by viewModel.syncing.collectAsStateWithLifecycle()
-    var showSyncDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         while (true) {
@@ -104,7 +102,7 @@ fun HomeScreen(
                     strokeWidth = 2.dp
                 )
             } else {
-                IconButton(onClick = { showSyncDialog = true }) {
+                IconButton(onClick = viewModel::sync) {
                     Icon(
                         imageVector = Icons.Rounded.Refresh,
                         contentDescription = "Actualizar canales y EPG",
@@ -155,20 +153,6 @@ fun HomeScreen(
         }
 
         Spacer(Modifier.height(24.dp))
-    }
-
-    if (showSyncDialog) {
-        SyncOptionsDialog(
-            onSyncFiltered = {
-                showSyncDialog = false
-                viewModel.syncFiltered()
-            },
-            onSyncAll = {
-                showSyncDialog = false
-                viewModel.syncAll()
-            },
-            onDismiss = { showSyncDialog = false }
-        )
     }
 }
 

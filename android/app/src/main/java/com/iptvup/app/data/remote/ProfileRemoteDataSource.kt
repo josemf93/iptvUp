@@ -1,6 +1,7 @@
 package com.iptvup.app.data.remote
 
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.SetOptions
 import com.iptvup.app.data.local.HiddenItemEntity
 import com.iptvup.app.data.model.IptvProfile
 import com.iptvup.app.data.model.ProfileKind
@@ -116,8 +117,7 @@ class ProfileRemoteDataSource @Inject constructor(
         profileId: String,
         kind: String,
         itemKeys: Set<String>
-    ) {
-        val ref = hiddenRef(uid, profileId)
+    ) {        val ref = hiddenRef(uid, profileId)
         val existing = ref.get().await().documents.filter { document ->
             document.getString("kind") == kind
         }
@@ -150,6 +150,26 @@ class ProfileRemoteDataSource @Inject constructor(
             batch.commit().await()
         }
     }
+
+    suspend fun getGroupOrder(uid: String, profileId: String): List<String> {
+        val doc = profileRef(uid, profileId).get().await()
+        return (doc.get("groupOrder") as? List<*>)
+            ?.mapNotNull { it as? String }
+            ?.filter { it.isNotBlank() }
+            .orEmpty()
+    }
+
+    suspend fun setGroupOrder(uid: String, profileId: String, groups: List<String>) {
+        profileRef(uid, profileId)
+            .set(mapOf("groupOrder" to groups), SetOptions.merge())
+            .await()
+    }
+
+    private fun profileRef(uid: String, profileId: String) =
+        firestore.collection("users")
+            .document(uid)
+            .collection("iptvProfiles")
+            .document(profileId)
 
     private fun favoritesRef(uid: String, profileId: String) =
         firestore.collection("users")

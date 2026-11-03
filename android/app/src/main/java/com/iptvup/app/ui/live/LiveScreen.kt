@@ -25,6 +25,7 @@ import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material.icons.rounded.StarBorder
+import androidx.compose.material.icons.rounded.SwapVert
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
@@ -54,11 +55,11 @@ import com.iptvup.app.core.ui.components.ChannelLogo
 import com.iptvup.app.core.ui.components.EmptyState
 import com.iptvup.app.core.ui.components.ErrorBanner
 import com.iptvup.app.core.ui.components.GroupGrid
+import com.iptvup.app.core.ui.components.GroupOrderDialog
 import com.iptvup.app.core.ui.components.GroupVisibilityDialog
 import com.iptvup.app.core.ui.components.NowNextText
 import com.iptvup.app.core.ui.components.QualityBadge
 import com.iptvup.app.core.ui.components.SearchDialog
-import com.iptvup.app.core.ui.components.SyncOptionsDialog
 import com.iptvup.app.core.ui.theme.Accent
 import com.iptvup.app.core.ui.theme.Primary
 import com.iptvup.app.core.ui.theme.SurfaceDark
@@ -89,7 +90,7 @@ fun LiveScreen(
 
     var showGroupsDialog by remember { mutableStateOf(false) }
     var showSearchDialog by remember { mutableStateOf(false) }
-    var showSyncDialog by remember { mutableStateOf(false) }
+    var showOrderDialog by remember { mutableStateOf(false) }
     val isTv = isTelevision()
 
     val hiddenGroups = remember(hidden) {
@@ -151,7 +152,7 @@ fun LiveScreen(
                             overflow = TextOverflow.Ellipsis
                         )
                     } else {
-                        IconButton(onClick = { showSyncDialog = true }) {
+                        IconButton(onClick = viewModel::sync) {
                             Icon(
                                 imageVector = Icons.Rounded.Refresh,
                                 contentDescription = "Actualizar lista",
@@ -230,6 +231,13 @@ fun LiveScreen(
                             fontWeight = FontWeight.SemiBold,
                             modifier = Modifier.weight(1f)
                         )
+                        IconButton(onClick = { showOrderDialog = true }) {
+                            Icon(
+                                imageVector = Icons.Rounded.SwapVert,
+                                contentDescription = "Ordenar grupos",
+                                tint = TextSecondary
+                            )
+                        }
                         if (isTv) {
                             IconButton(onClick = { showSearchDialog = true }) {
                                 Icon(
@@ -308,7 +316,8 @@ fun LiveScreen(
                         onSelect = { group ->
                             viewModel.setQuery("")
                             viewModel.selectGroup(group)
-                        }
+                        },
+                        onLongClick = { showOrderDialog = true }
                     )
                 }
             } else if (channels.isEmpty() && !syncing) {
@@ -373,17 +382,11 @@ fun LiveScreen(
         )
     }
 
-    if (showSyncDialog) {
-        SyncOptionsDialog(
-            onSyncFiltered = {
-                showSyncDialog = false
-                viewModel.sync()
-            },
-            onSyncAll = {
-                showSyncDialog = false
-                viewModel.syncAll()
-            },
-            onDismiss = { showSyncDialog = false }
+    if (showOrderDialog) {
+        GroupOrderDialog(
+            groups = groups,
+            onSave = viewModel::saveGroupOrder,
+            onDismiss = { showOrderDialog = false }
         )
     }
 }

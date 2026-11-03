@@ -12,6 +12,7 @@ import com.iptvup.app.data.local.dedupePrograms
 import com.iptvup.app.data.identity.ChannelQuality
 import com.iptvup.app.data.model.EpgEntry
 import com.iptvup.app.data.repository.FavoritesRepository
+import com.iptvup.app.data.repository.GroupOrderRepository
 import com.iptvup.app.data.repository.HiddenRepository
 import com.iptvup.app.data.sync.SyncManager
 import com.iptvup.app.data.sync.SyncState
@@ -42,6 +43,7 @@ class LiveViewModel @Inject constructor(
     private val epgDao: EpgDao,
     private val favoritesRepository: FavoritesRepository,
     private val hiddenRepository: HiddenRepository,
+    private val groupOrderRepository: GroupOrderRepository,
     private val syncManager: SyncManager
 ) : ViewModel() {
 
@@ -88,6 +90,12 @@ class LiveViewModel @Inject constructor(
 
     private val _epg = MutableStateFlow<Map<String, EpgEntry>>(emptyMap())
 
+    val groupOrder = groupOrderRepository.observe(profileId).stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = emptyList()
+    )
+
     private val _ready = MutableStateFlow(false)
     val ready: StateFlow<Boolean> = _ready.asStateFlow()
 
@@ -103,11 +111,15 @@ class LiveViewModel @Inject constructor(
         initialValue = emptyList()
     )
 
-    val allGroups = combine(channelDao.observeGroups(profileId), hidden) { stored, hiddenItems ->
+    val allGroups = combine(channelDao.observeGroups(profileId), hidden, groupOrder) {
+            stored, hiddenItems, order ->
         val hiddenKeys = hiddenItems
             .filter { it.kind == HiddenRepository.KIND_GROUP }
             .map { it.itemKey }
-        (stored + hiddenKeys).distinct().sortedBy { it.lowercase() }
+        groupOrderRepository.sortGroups(
+            (stored + hiddenKeys).distinct(),
+            order
+        )
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
@@ -185,13 +197,14 @@ class LiveViewModel @Inject constructor(
             runCatching { hiddenRepository.refresh(profileId) }
         }
         viewModelScope.launch {
-            combine(channelDao.observeAll(profileId), hidden) { channels, _ -> channels }
-                .collect { _ready.value = true }
+            runCatching { groupOrderRepository.refresh(profileId) }
+            combine(channelDao.observeAll(profileId), hidden, groupOrder) { channels, _, _ ->
+                channels
+            }.first()
+            _ready.value = true
         }
         viewModelScope.launch {
-            if (channelDao.count(profileId) == 0) {
-                syncManager.sync(profileId, force = true, fullSync = false)
-            }
+            syncManager.syncIfEmpty(profileId)
         }
         viewModelScope.launch {
             syncManager.state.collect { state ->
@@ -223,26 +236,16 @@ class LiveViewModel @Inject constructor(
     }
 
     fun toggleGroupHidden(group: String) {
-        val wasHidden = hidden.value.any {
-            it.kind == HiddenRepository.KIND_GROUP && it.itemKey == group
-        }
         if (_selectedGroup.value == group) {
             _selectedGroup.value = null
         }
         viewModelScope.launch {
             hiddenRepository.toggleGroup(profileId, group)
-            if (wasHidden && (groupCounts.value[group] ?: 0) == 0) {
-                syncManager.sync(profileId, force = true, fullSync = false)
-            }
         }
     }
 
     fun sync() {
-        syncManager.sync(profileId, force = true, fullSync = false)
-    }
-
-    fun syncAll() {
-        syncManager.sync(profileId, force = true, fullSync = true)
+        syncManager.sync(profileId)
     }
 
     fun dismissError() {
@@ -250,15 +253,8 @@ class LiveViewModel @Inject constructor(
     }
 
     fun showAllGroups() {
-        val hiddenGroups = hidden.value
-            .filter { it.kind == HiddenRepository.KIND_GROUP }
-            .map { it.itemKey }
-            .toSet()
         viewModelScope.launch {
             hiddenRepository.setGroupsHidden(profileId, allGroups.value, hidden = false)
-            if (hiddenGroups.isNotEmpty()) {
-                syncManager.sync(profileId, force = true, fullSync = false)
-            }
         }
     }
 
@@ -266,6 +262,12 @@ class LiveViewModel @Inject constructor(
         _selectedGroup.value = null
         viewModelScope.launch {
             hiddenRepository.setGroupsHidden(profileId, allGroups.value, hidden = true)
+        }
+    }
+
+    fun saveGroupOrder(groups: List<String>) {
+        viewModelScope.launch {
+            groupOrderRepository.save(profileId, groups)
         }
     }
 

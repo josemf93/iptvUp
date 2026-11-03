@@ -105,7 +105,8 @@ class HomeViewModel @Inject constructor(
                 val channels = channelDao.observeAll(profileId).first()
                     .filter {
                         it.groupName !in hiddenGroups &&
-                            !ChannelQuality.isJunkChannel(it.name)
+                            !ChannelQuality.isJunkChannel(it.name) &&
+                            ChannelQuality.label(it.name) != "8K"
                     }
                 val now = System.currentTimeMillis()
                 val programs = epgDao.getWindow(
@@ -125,12 +126,8 @@ class HomeViewModel @Inject constructor(
         }
     }
 
-    fun syncFiltered() {
-        syncManager.sync(profileId, force = true, fullSync = false)
-    }
-
-    fun syncAll() {
-        syncManager.sync(profileId, force = true, fullSync = true)
+    fun sync() {
+        syncManager.sync(profileId)
     }
 
     private fun matchEvent(

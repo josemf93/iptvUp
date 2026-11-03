@@ -10,6 +10,7 @@ import com.iptvup.app.data.local.EpgProgramEntity
 import com.iptvup.app.data.local.HiddenItemEntity
 import com.iptvup.app.data.local.dedupePrograms
 import com.iptvup.app.data.identity.ChannelQuality
+import com.iptvup.app.data.repository.GroupOrderRepository
 import com.iptvup.app.data.repository.HiddenRepository
 import com.iptvup.app.data.sync.SyncManager
 import com.iptvup.app.data.sync.SyncState
@@ -46,6 +47,7 @@ class EpgViewModel @Inject constructor(
     private val channelDao: ChannelDao,
     private val epgDao: EpgDao,
     private val hiddenRepository: HiddenRepository,
+    private val groupOrderRepository: GroupOrderRepository,
     private val syncManager: SyncManager
 ) : ViewModel() {
 
@@ -102,11 +104,21 @@ class EpgViewModel @Inject constructor(
         initialValue = emptyList()
     )
 
-    val allGroups = combine(channelDao.observeGroups(profileId), hidden) { stored, hiddenItems ->
+    private val groupOrder = groupOrderRepository.observe(profileId).stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = emptyList()
+    )
+
+    val allGroups = combine(channelDao.observeGroups(profileId), hidden, groupOrder) {
+            stored, hiddenItems, order ->
         val hiddenKeys = hiddenItems
             .filter { it.kind == HiddenRepository.KIND_GROUP }
             .map { it.itemKey }
-        (stored + hiddenKeys).distinct().sortedBy { it.lowercase() }
+        groupOrderRepository.sortGroups(
+            (stored + hiddenKeys).distinct(),
+            order
+        )
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
@@ -205,6 +217,8 @@ class EpgViewModel @Inject constructor(
             runCatching { hiddenRepository.refresh(profileId) }
         }
         viewModelScope.launch {
+            runCatching { groupOrderRepository.refresh(profileId) }
+            groupOrderRepository.observe(profileId).first()
             channelDao.observeAll(profileId).first()
             loadPrograms()
             kotlinx.coroutines.delay(100)
@@ -235,30 +249,17 @@ class EpgViewModel @Inject constructor(
     }
 
     fun toggleGroupHidden(group: String) {
-        val wasHidden = hidden.value.any {
-            it.kind == HiddenRepository.KIND_GROUP && it.itemKey == group
-        }
         if (_selectedGroup.value == group) {
             _selectedGroup.value = null
         }
         viewModelScope.launch {
             hiddenRepository.toggleGroup(profileId, group)
-            if (wasHidden && (groupCounts.value[group] ?: 0) == 0) {
-                syncManager.sync(profileId, force = true, fullSync = false)
-            }
         }
     }
 
     fun showAllGroups() {
-        val hiddenGroups = hidden.value
-            .filter { it.kind == HiddenRepository.KIND_GROUP }
-            .map { it.itemKey }
-            .toSet()
         viewModelScope.launch {
             hiddenRepository.setGroupsHidden(profileId, allGroups.value, hidden = false)
-            if (hiddenGroups.isNotEmpty()) {
-                syncManager.sync(profileId, force = true, fullSync = false)
-            }
         }
     }
 
@@ -274,11 +275,7 @@ class EpgViewModel @Inject constructor(
     }
 
     fun sync() {
-        syncManager.sync(profileId, force = true, fullSync = false)
-    }
-
-    fun syncAll() {
-        syncManager.sync(profileId, force = true, fullSync = true)
+        syncManager.sync(profileId)
     }
 
     fun dismissError() {
