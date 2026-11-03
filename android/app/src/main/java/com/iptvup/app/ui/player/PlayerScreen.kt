@@ -716,27 +716,29 @@ fun PlayerScreen(
                                 style = MaterialTheme.typography.labelSmall
                             )
                         }
-                        IconButton(
-                            onClick = {
-                                isFullscreen = !isFullscreen
-                                controlsVisible = true
-                                interactionTick++
-                            },
-                            modifier = Modifier.padding(start = 8.dp, bottom = 4.dp)
-                        ) {
-                            Icon(
-                                imageVector = if (isFullscreen) {
-                                    Icons.Rounded.FullscreenExit
-                                } else {
-                                    Icons.Rounded.Fullscreen
+                        if (!isTv) {
+                            IconButton(
+                                onClick = {
+                                    isFullscreen = !isFullscreen
+                                    controlsVisible = true
+                                    interactionTick++
                                 },
-                                contentDescription = if (isFullscreen) {
-                                    "Salir de pantalla completa"
-                                } else {
-                                    "Pantalla completa"
-                                },
-                                tint = Color.White
-                            )
+                                modifier = Modifier.padding(start = 8.dp, bottom = 4.dp)
+                            ) {
+                                Icon(
+                                    imageVector = if (isFullscreen) {
+                                        Icons.Rounded.FullscreenExit
+                                    } else {
+                                        Icons.Rounded.Fullscreen
+                                    },
+                                    contentDescription = if (isFullscreen) {
+                                        "Salir de pantalla completa"
+                                    } else {
+                                        "Pantalla completa"
+                                    },
+                                    tint = Color.White
+                                )
+                            }
                         }
                     }
                 }

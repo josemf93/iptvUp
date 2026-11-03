@@ -72,9 +72,7 @@ fun MainScreen(
         when (tab) {
             MainTab.HOME -> HomeScreen(
                 profile = profile,
-                onPlay = onPlay,
-                onGoLive = { tabName = MainTab.LIVE.name },
-                onGoEpg = { tabName = MainTab.EPG.name }
+                onPlay = onPlay
             )
 
             MainTab.LIVE -> LiveScreen(onPlay = onPlay)

@@ -13,11 +13,15 @@ Reproductor IPTV privado para **Android** y **Android TV**, con perfiles sincron
 - Login con email y contraseña (Firebase Auth).
 - Perfiles IPTV en la nube: **M3U** o **Xtream Codes**.
 - Lista de canales por grupos, búsqueda, favoritos y ocultación de grupos.
+- **Actualización filtrada**: por defecto solo se descargan y guardan los grupos visibles; los grupos ocultos no ocupan espacio ni se actualizan.
+- **Botón de actualización en Inicio**: permite elegir entre actualizar solo los grupos visibles (rápido, automático cada 24 h) o todos los canales (más lento).
+- **EPG de respaldo para España** desde `epgshare01.online`, emparejando canales por nombre cuando el proveedor no tiene datos.
+- **Tarjeta de eventos deportivos** en Inicio: partidos de fútbol y baloncesto del día con hora, escudos, competición y acceso directo al canal de mejor calidad de tu lista.
+- **Arranque en el último perfil usado**.
 - **Iconos de perfil personalizables**: toca el avatar de cada lista para elegir entre varios iconos.
 - En **móvil y Android TV**, la pestaña TV muestra primero los grupos como tarjetas con icono; al entrar en un grupo aparece su lista de canales con botón de volver.
-- **Sincronización diaria**: al entrar en un perfil usa la caché y solo descarga lista/EPG si han pasado 24 horas o si pulsas actualizar.
-- **EPG solo de grupos visibles**: no se guardan programas de grupos ocultos.
-- **Deduplicación de canales**: elimina repetidos de la misma calidad y conserva 4K/FHD/HD/SD como entradas separadas, con su etiqueta visible.
+- **Sincronización diaria**: al entrar en un perfil usa la caché y solo descarga lista/EPG si han pasado 24 horas o si pulsas actualizar. La actualización automática usa solo los grupos visibles.
+- **EPG solo de grupos visibles**: no se guardan programas de grupos ocultos, y se completa con la fuente española de epgshare cuando el proveedor no tiene datos.
 - Reproductor **Media3/ExoPlayer** para HLS y TS.
 - **Guía EPG** (XMLTV) con ahora/después, parrilla temporal en móvil, lista adaptada a TV, buscador de canales y el mismo gestor multi-grupo que TV.
 - Pantalla de inicio con **historial de los últimos 10 canales abiertos**.
@@ -333,11 +337,13 @@ npm run set-admin -- admin@test.com
 
 ## 7. Limitaciones actuales / siguientes pasos
 
-- EPG de respaldo para canales españoles sin `tvg-id`: emparejamiento por nombre con una fuente XMLTV externa (por ejemplo TDTChannels). La app ya omite los grupos ocultos al guardar la EPG.
+- La **EPG de respaldo** de epgshare cubre canales españoles emparejados por nombre; si un canal usa un nombre muy distinto al de la fuente, puede no encontrar datos.
+- Los eventos deportivos usan la API pública de ESPN: LaLiga, Copa, Supercopa, Champions/Europa con equipos españoles, NBA y EuroLeague. La ACB no está disponible en esa fuente.
+- En listas **M3U** el proveedor obliga a descargar el archivo completo; se omiten los grupos ocultos al parsear y guardar, pero la descarga inicial sigue siendo el archivo entero. En **Xtream** sí se descargan solo las categorías visibles.
 - EPG en parrilla temporal también en TV (ahora TV usa la lista de grupos → canales con ahora/después).
 - Chromecast con receptor propio para streams TS; el receptor por defecto funciona mejor con HLS/DASH.
 - Previsualización en vídeo (mini-player) dentro de la lista de canales de TV.
-- La deduplicación agrupa por canal + calidad; si un proveedor usa el mismo `tvg-id` para feeds distintos de la misma calidad, se queda uno. Las calidades distintas se conservan.
+- Ya no se eliminan canales duplicados automáticamente: si tu proveedor repite el mismo canal con la misma URL, pueden aparecer entradas repetidas.
 - Catch-up, grabación, PiP y Chromecast.
 - Login por QR/código en TV.
 - Tests instrumentados y pruebas con listas reales grandes.

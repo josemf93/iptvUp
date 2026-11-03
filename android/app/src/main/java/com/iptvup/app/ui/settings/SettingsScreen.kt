@@ -129,40 +129,6 @@ fun SettingsScreen(
         }
 
         Spacer(Modifier.height(16.dp))
-        SectionTitle("Datos")
-        SettingsCard {
-            if (viewModel.busy) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(20.dp),
-                        strokeWidth = 2.dp,
-                        color = Primary
-                    )
-                    Spacer(Modifier.width(10.dp))
-                    Text(
-                        text = viewModel.status.ifBlank { "Actualizando..." },
-                        color = TextSecondary,
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                }
-                Spacer(Modifier.height(12.dp))
-            }
-            Button(
-                onClick = viewModel::sync,
-                enabled = !viewModel.busy,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Icon(Icons.Rounded.Refresh, contentDescription = null)
-                Spacer(Modifier.width(8.dp))
-                Text("Actualizar lista y EPG")
-            }
-            viewModel.error?.let { message ->
-                Spacer(Modifier.height(10.dp))
-                ErrorBanner(message = message, onRetry = viewModel::sync)
-            }
-        }
-
-        Spacer(Modifier.height(16.dp))
         SectionTitle("Cuenta")
         SettingsCard {
             OutlinedButton(

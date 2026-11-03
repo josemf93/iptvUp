@@ -17,22 +17,12 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.rounded.ChildCare
 import androidx.compose.material.icons.rounded.Clear
-import androidx.compose.material.icons.rounded.LiveTv
-import androidx.compose.material.icons.rounded.Movie
-import androidx.compose.material.icons.rounded.MusicNote
-import androidx.compose.material.icons.rounded.Newspaper
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Search
-import androidx.compose.material.icons.rounded.SportsEsports
-import androidx.compose.material.icons.rounded.SportsSoccer
 import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material.icons.rounded.StarBorder
 import androidx.compose.material.icons.rounded.Tune
@@ -54,7 +44,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -64,10 +53,12 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.iptvup.app.core.ui.components.ChannelLogo
 import com.iptvup.app.core.ui.components.EmptyState
 import com.iptvup.app.core.ui.components.ErrorBanner
-import com.iptvup.app.core.ui.components.FocusableCard
+import com.iptvup.app.core.ui.components.GroupGrid
 import com.iptvup.app.core.ui.components.GroupVisibilityDialog
 import com.iptvup.app.core.ui.components.NowNextText
 import com.iptvup.app.core.ui.components.QualityBadge
+import com.iptvup.app.core.ui.components.SearchDialog
+import com.iptvup.app.core.ui.components.SyncOptionsDialog
 import com.iptvup.app.core.ui.theme.Accent
 import com.iptvup.app.core.ui.theme.Primary
 import com.iptvup.app.core.ui.theme.SurfaceDark
@@ -96,6 +87,8 @@ fun LiveScreen(
     val error by viewModel.error.collectAsStateWithLifecycle()
 
     var showGroupsDialog by remember { mutableStateOf(false) }
+    var showSearchDialog by remember { mutableStateOf(false) }
+    var showSyncDialog by remember { mutableStateOf(false) }
     val isTv = isTelevision()
 
     val hiddenGroups = remember(hidden) {
@@ -155,7 +148,7 @@ fun LiveScreen(
                             overflow = TextOverflow.Ellipsis
                         )
                     } else {
-                        IconButton(onClick = viewModel::sync) {
+                        IconButton(onClick = { showSyncDialog = true }) {
                             Icon(
                                 imageVector = Icons.Rounded.Refresh,
                                 contentDescription = "Actualizar lista",
@@ -197,6 +190,15 @@ fun LiveScreen(
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f)
                         )
+                        if (isTv) {
+                            IconButton(onClick = { showSearchDialog = true }) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Search,
+                                    contentDescription = "Buscar",
+                                    tint = if (query.isNotBlank()) Primary else TextSecondary
+                                )
+                            }
+                        }
                         IconButton(onClick = { showGroupsDialog = true }) {
                             Icon(
                                 imageVector = Icons.Rounded.Tune,
@@ -208,10 +210,12 @@ fun LiveScreen(
                 }
 
                 Spacer(Modifier.height(10.dp))
-                ChannelSearchField(
-                    query = query,
-                    onQueryChange = viewModel::setQuery
-                )
+                if (!isTv) {
+                    ChannelSearchField(
+                        query = query,
+                        onQueryChange = viewModel::setQuery
+                    )
+                }
 
                 if (selectedGroup == null) {
                     Spacer(Modifier.height(10.dp))
@@ -223,6 +227,15 @@ fun LiveScreen(
                             fontWeight = FontWeight.SemiBold,
                             modifier = Modifier.weight(1f)
                         )
+                        if (isTv) {
+                            IconButton(onClick = { showSearchDialog = true }) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Search,
+                                    contentDescription = "Buscar",
+                                    tint = if (query.isNotBlank()) Primary else TextSecondary
+                                )
+                            }
+                        }
                         IconButton(onClick = { showGroupsDialog = true }) {
                             Icon(
                                 imageVector = Icons.Rounded.Tune,
@@ -279,7 +292,7 @@ fun LiveScreen(
                     GroupGrid(
                         groups = visibleGroups,
                         counts = groupCounts,
-                        isTv = isTv,
+                        minCardWidth = if (isTv) 220.dp else 150.dp,
                         onSelect = { group ->
                             viewModel.setQuery("")
                             viewModel.selectGroup(group)
@@ -339,6 +352,28 @@ fun LiveScreen(
             onDismiss = { showGroupsDialog = false }
         )
     }
+
+    if (showSearchDialog) {
+        SearchDialog(
+            initialQuery = query,
+            onQueryChange = viewModel::setQuery,
+            onDismiss = { showSearchDialog = false }
+        )
+    }
+
+    if (showSyncDialog) {
+        SyncOptionsDialog(
+            onSyncFiltered = {
+                showSyncDialog = false
+                viewModel.sync()
+            },
+            onSyncAll = {
+                showSyncDialog = false
+                viewModel.syncAll()
+            },
+            onDismiss = { showSyncDialog = false }
+        )
+    }
 }
 
 @Composable
@@ -372,60 +407,6 @@ private fun ChannelSearchField(
             cursorColor = Primary
         )
     )
-}
-
-@Composable
-private fun GroupGrid(
-    groups: List<String>,
-    counts: Map<String, Int>,
-    isTv: Boolean,
-    onSelect: (String) -> Unit
-) {
-    LazyVerticalGrid(
-        columns = GridCells.Adaptive(minSize = if (isTv) 220.dp else 150.dp),
-        contentPadding = PaddingValues(20.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-        modifier = Modifier.fillMaxSize()
-    ) {
-        gridItems(groups, key = { it }) { group ->
-            FocusableCard(
-                onClick = { onSelect(group) },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(modifier = Modifier.padding(18.dp)) {
-                    Box(
-                        modifier = Modifier
-                            .size(52.dp)
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(Primary.copy(alpha = 0.16f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = groupIconFor(group),
-                            contentDescription = null,
-                            tint = Primary
-                        )
-                    }
-                    Spacer(Modifier.height(12.dp))
-                    Text(
-                        text = group,
-                        color = TextPrimary,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        text = "${counts[group] ?: 0} canales",
-                        color = TextSecondary,
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                }
-            }
-        }
-    }
 }
 
 @Composable
@@ -539,24 +520,5 @@ private fun ChannelRow(
                 tint = if (item.favorite) Accent else TextSecondary
             )
         }
-    }
-}
-
-private fun groupIconFor(name: String): ImageVector {
-    val value = name.lowercase()
-    return when {
-        listOf("deporte", "sport", "futbol", "motor").any { it in value } ->
-            Icons.Rounded.SportsSoccer
-        listOf("cine", "pelic", "movie", "estreno").any { it in value } ->
-            Icons.Rounded.Movie
-        listOf("infantil", "kids", "nino", "dibujo").any { it in value } ->
-            Icons.Rounded.ChildCare
-        listOf("musica", "music").any { it in value } ->
-            Icons.Rounded.MusicNote
-        listOf("noticia", "news", "informa").any { it in value } ->
-            Icons.Rounded.Newspaper
-        listOf("juego", "game", "esport").any { it in value } ->
-            Icons.Rounded.SportsEsports
-        else -> Icons.Rounded.LiveTv
     }
 }

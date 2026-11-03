@@ -61,6 +61,15 @@ class UpdateManager @Inject constructor(
     private var current: UpdateInfo? = null
     private var pendingApk: File? = null
 
+    init {
+        // Limpia APKs de actualizaciones anteriores; Android ya instaló la versión nueva.
+        runCatching {
+            context.cacheDir.listFiles { file ->
+                file.isFile && file.name.matches(Regex("iptvup-\\d+\\.apk"))
+            }?.forEach { it.delete() }
+        }
+    }
+
     suspend fun check(manual: Boolean = false) = withContext(Dispatchers.IO) {
         val now = System.currentTimeMillis()
         val lastCheck = settings.lastUpdateCheckMs.first()

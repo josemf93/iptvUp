@@ -44,7 +44,8 @@ class XtreamClient @Inject constructor(
 
     suspend fun liveStreams(
         credentials: ProfileCredentials,
-        categories: Map<String, String>
+        categories: Map<String, String>,
+        categoryIds: Set<String>? = null
     ): List<ParsedChannel> = withContext(Dispatchers.IO) {
         val host = normalizeHost(credentials.xtreamHost ?: error("Falta el host Xtream"))
         val user = credentials.xtreamUsername ?: error("Falta el usuario Xtream")
@@ -56,9 +57,51 @@ class XtreamClient @Inject constructor(
             ?.addQueryParameter("action", "get_live_streams")
             ?.build()
             ?: error("Host Xtream no válido")
-        val json = getJson(url.toString())
+
+        val result = ArrayList<ParsedChannel>()
+        val usedKeys = HashSet<String>()
+        if (categoryIds == null) {
+            parseStreams(getJson(url.toString()), host, user, pass, categories, result, usedKeys)
+        } else {
+            var successfulCategories = 0
+            categoryIds.forEach { categoryId ->
+                try {
+                    val categoryUrl = url.newBuilder()
+                        .addQueryParameter("category_id", categoryId)
+                        .build()
+                    parseStreams(
+                        getJson(categoryUrl.toString()),
+                        host,
+                        user,
+                        pass,
+                        categories,
+                        result,
+                        usedKeys
+                    )
+                    successfulCategories++
+                } catch (_: Exception) {
+                    // Si el proveedor no soporta category_id, se reintenta abajo.
+                }
+            }
+            if (successfulCategories == 0 && categoryIds.isNotEmpty()) {
+                result.clear()
+                usedKeys.clear()
+                parseStreams(getJson(url.toString()), host, user, pass, categories, result, usedKeys)
+            }
+        }
+        result.distinctBy { it.channelKey }
+    }
+
+    private fun parseStreams(
+        json: String,
+        host: String,
+        user: String,
+        pass: String,
+        categories: Map<String, String>,
+        output: MutableList<ParsedChannel>,
+        usedKeys: MutableSet<String>
+    ) {
         val array = JSONArray(json)
-        val result = ArrayList<ParsedChannel>(array.length())
         for (index in 0 until array.length()) {
             val item = array.optJSONObject(index) ?: continue
             val streamId = item.opt("stream_id")?.toString()
@@ -71,19 +114,25 @@ class XtreamClient @Inject constructor(
                 ?.takeIf { it != "null" && it != "0" && it.isNotBlank() }
             val logo = item.optString("stream_icon", "").takeIf { it.isNotBlank() }
             val dedupeKey = ChannelIdentity.dedupeKey(name, group, epgId)
-            result += ParsedChannel(
-                channelKey = ChannelIdentity.channelKey(dedupeKey),
+            val legacyKey = ChannelIdentity.channelKey(dedupeKey)
+            val channelKey = if (usedKeys.add(legacyKey)) {
+                legacyKey
+            } else {
+                ChannelIdentity.uniqueChannelKey(name, group, streamId)
+            }
+            val streamUrl = "$host/live/$user/$pass/$streamId.m3u8"
+            output += ParsedChannel(
+                channelKey = channelKey,
                 dedupeKey = dedupeKey,
                 name = name,
                 logoUrl = logo,
                 groupName = group,
-                streamUrl = "$host/live/$user/$pass/$streamId.m3u8",
+                streamUrl = streamUrl,
                 epgChannelId = epgId,
                 streamId = streamId,
-                sortOrder = index
+                sortOrder = output.size
             )
         }
-        result
     }
 
     fun epgUrl(credentials: ProfileCredentials): String? {

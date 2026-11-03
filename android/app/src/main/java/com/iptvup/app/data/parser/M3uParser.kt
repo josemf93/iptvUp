@@ -15,6 +15,7 @@ class M3uParser @Inject constructor() {
 
     suspend fun parse(
         reader: BufferedReader,
+        excludedGroups: Set<String> = emptySet(),
         onChannel: suspend (ParsedChannel) -> Unit
     ): M3uParseResult {
         var epgUrl: String? = null
@@ -22,6 +23,7 @@ class M3uParser @Inject constructor() {
         var pendingName: String? = null
         var currentGroup: String? = null
         var count = 0
+        val usedKeys = HashSet<String>()
 
         while (true) {
             val line = reader.readLine() ?: break
@@ -67,20 +69,28 @@ class M3uParser @Inject constructor() {
                             tvgName != null && ChannelQuality.label(tvgName) != null -> tvgName
                             else -> name
                         }
-                        val dedupeKey = ChannelIdentity.dedupeKey(displayName, group, epgId)
-                        onChannel(
-                            ParsedChannel(
-                                channelKey = ChannelIdentity.channelKey(dedupeKey),
-                                dedupeKey = dedupeKey,
-                                name = displayName,
-                                logoUrl = attrs["tvg-logo"]?.takeIf { it.isNotBlank() },
-                                groupName = group,
-                                streamUrl = url,
-                                epgChannelId = epgId,
-                                sortOrder = count
+                        if (group !in excludedGroups) {
+                            val dedupeKey = ChannelIdentity.dedupeKey(displayName, group, epgId)
+                            val legacyKey = ChannelIdentity.channelKey(dedupeKey)
+                            val uniqueKey = if (usedKeys.add(legacyKey)) {
+                                legacyKey
+                            } else {
+                                ChannelIdentity.uniqueChannelKey(displayName, group, url)
+                            }
+                            onChannel(
+                                ParsedChannel(
+                                    channelKey = uniqueKey,
+                                    dedupeKey = dedupeKey,
+                                    name = displayName,
+                                    logoUrl = attrs["tvg-logo"]?.takeIf { it.isNotBlank() },
+                                    groupName = group,
+                                    streamUrl = url,
+                                    epgChannelId = epgId,
+                                    sortOrder = count
+                                )
                             )
-                        )
-                        count++
+                            count++
+                        }
                         pendingAttrs = null
                         pendingName = null
                     }

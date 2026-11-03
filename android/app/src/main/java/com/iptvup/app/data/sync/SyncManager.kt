@@ -1,5 +1,6 @@
 package com.iptvup.app.data.sync
 
+import com.iptvup.app.data.local.ChannelDao
 import com.iptvup.app.data.repository.HiddenRepository
 import com.iptvup.app.data.repository.PlaylistRepository
 import com.iptvup.app.data.repository.ProfileRepository
@@ -26,7 +27,8 @@ sealed interface SyncState {
 class SyncManager @Inject constructor(
     private val profileRepository: ProfileRepository,
     private val playlistRepository: PlaylistRepository,
-    private val hiddenRepository: HiddenRepository
+    private val hiddenRepository: HiddenRepository,
+    private val channelDao: ChannelDao
 ) {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -36,7 +38,7 @@ class SyncManager @Inject constructor(
     private var job: Job? = null
     private var activeProfileId: String? = null
 
-    fun sync(profileId: String, force: Boolean = false) {
+    fun sync(profileId: String, force: Boolean = false, fullSync: Boolean = false) {
         if (job?.isActive == true && activeProfileId == profileId) return
 
         job?.cancel()
@@ -46,6 +48,15 @@ class SyncManager @Inject constructor(
             if (profile == null) {
                 _state.value = SyncState.Error(profileId, "Perfil no encontrado")
                 return@launch
+            }
+
+            runCatching { hiddenRepository.refresh(profileId) }
+            val hiddenGroups = hiddenRepository.getHiddenGroups(profileId)
+            if (!fullSync && hiddenGroups.isNotEmpty()) {
+                // Los grupos ocultos no se guardan: así el arranque carga solo lo visible.
+                hiddenGroups.chunked(400).forEach { chunk ->
+                    channelDao.deleteByGroups(profileId, chunk)
+                }
             }
 
             val lastSync = profile.lastSyncedAt
@@ -60,12 +71,11 @@ class SyncManager @Inject constructor(
             _state.value = SyncState.Running(profileId, "Preparando...")
             try {
                 val credentials = profileRepository.getCredentials(profile)
-                runCatching { hiddenRepository.refresh(profileId) }
-                val hiddenGroups = hiddenRepository.getHiddenGroups(profileId)
                 playlistRepository.sync(
                     profile = profile,
                     credentials = credentials,
-                    hiddenGroups = hiddenGroups
+                    hiddenGroups = hiddenGroups,
+                    fullSync = fullSync
                 ) { status ->
                     _state.value = SyncState.Running(profileId, status)
                 }.onSuccess {

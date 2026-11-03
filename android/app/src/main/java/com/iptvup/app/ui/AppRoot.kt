@@ -1,14 +1,23 @@
 package com.iptvup.app.ui
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.iptvup.app.core.ui.theme.Background
+import com.iptvup.app.core.ui.theme.Primary
 import com.iptvup.app.ui.auth.LoginScreen
 import com.iptvup.app.ui.main.MainScreen
 import com.iptvup.app.ui.player.PlayerScreen
@@ -20,21 +29,44 @@ fun AppRoot(
     appViewModel: AppViewModel = hiltViewModel()
 ) {
     val user by appViewModel.user.collectAsStateWithLifecycle()
+    val authReady by appViewModel.authReady.collectAsStateWithLifecycle()
+    val startState by appViewModel.startState.collectAsStateWithLifecycle()
 
-    if (user == null) {
-        LoginScreen()
-    } else {
-        AuthenticatedNavHost()
+    when {
+        !authReady -> LoadingScreen()
+        user == null -> LoginScreen()
+        startState is AppStartState.Loading -> LoadingScreen()
+        else -> {
+            val profileId = (startState as AppStartState.Ready).profileId
+            AuthenticatedNavHost(startProfileId = profileId)
+        }
     }
 }
 
 @Composable
-private fun AuthenticatedNavHost() {
+private fun LoadingScreen() {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Background),
+        contentAlignment = Alignment.Center
+    ) {
+        CircularProgressIndicator(color = Primary)
+    }
+}
+
+@Composable
+private fun AuthenticatedNavHost(startProfileId: String?) {
     val navController = rememberNavController()
+    val startDestination = if (startProfileId != null) {
+        "main/$startProfileId"
+    } else {
+        "profiles"
+    }
 
     NavHost(
         navController = navController,
-        startDestination = "profiles"
+        startDestination = startDestination
     ) {
         composable("profiles") {
             ProfilesScreen(
@@ -82,7 +114,9 @@ private fun AuthenticatedNavHost() {
                 },
                 onSwitchProfile = {
                     navController.navigate("profiles") {
-                        popUpTo("profiles") { inclusive = true }
+                        popUpTo(navController.graph.findStartDestination().id) {
+                            inclusive = true
+                        }
                         launchSingleTop = true
                     }
                 }

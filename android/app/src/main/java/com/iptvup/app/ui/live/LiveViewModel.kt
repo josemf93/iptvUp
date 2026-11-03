@@ -98,7 +98,12 @@ class LiveViewModel @Inject constructor(
         initialValue = emptyList()
     )
 
-    val allGroups = channelDao.observeGroups(profileId).stateIn(
+    val allGroups = combine(channelDao.observeGroups(profileId), hidden) { stored, hiddenItems ->
+        val hiddenKeys = hiddenItems
+            .filter { it.kind == HiddenRepository.KIND_GROUP }
+            .map { it.itemKey }
+        (stored + hiddenKeys).distinct().sortedBy { it.lowercase() }
+    }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
         initialValue = emptyList()
@@ -171,7 +176,7 @@ class LiveViewModel @Inject constructor(
         }
         viewModelScope.launch {
             if (channelDao.count(profileId) == 0) {
-                syncManager.sync(profileId, force = true)
+                syncManager.sync(profileId, force = true, fullSync = false)
             }
         }
         viewModelScope.launch {
@@ -204,16 +209,26 @@ class LiveViewModel @Inject constructor(
     }
 
     fun toggleGroupHidden(group: String) {
+        val wasHidden = hidden.value.any {
+            it.kind == HiddenRepository.KIND_GROUP && it.itemKey == group
+        }
         if (_selectedGroup.value == group) {
             _selectedGroup.value = null
         }
         viewModelScope.launch {
             hiddenRepository.toggleGroup(profileId, group)
+            if (wasHidden && (groupCounts.value[group] ?: 0) == 0) {
+                syncManager.sync(profileId, force = true, fullSync = false)
+            }
         }
     }
 
     fun sync() {
-        syncManager.sync(profileId, force = true)
+        syncManager.sync(profileId, force = true, fullSync = false)
+    }
+
+    fun syncAll() {
+        syncManager.sync(profileId, force = true, fullSync = true)
     }
 
     fun dismissError() {
@@ -221,8 +236,15 @@ class LiveViewModel @Inject constructor(
     }
 
     fun showAllGroups() {
+        val hiddenGroups = hidden.value
+            .filter { it.kind == HiddenRepository.KIND_GROUP }
+            .map { it.itemKey }
+            .toSet()
         viewModelScope.launch {
             hiddenRepository.setGroupsHidden(profileId, allGroups.value, hidden = false)
+            if (hiddenGroups.isNotEmpty()) {
+                syncManager.sync(profileId, force = true, fullSync = false)
+            }
         }
     }
 

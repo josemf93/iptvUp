@@ -18,17 +18,16 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Clear
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -50,14 +49,18 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.activity.compose.BackHandler
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.iptvup.app.core.ui.components.ChannelLogo
 import com.iptvup.app.core.ui.components.EmptyState
 import com.iptvup.app.core.ui.components.ErrorBanner
+import com.iptvup.app.core.ui.components.GroupGrid
 import com.iptvup.app.core.ui.components.GroupVisibilityDialog
 import com.iptvup.app.core.ui.components.NowNextText
 import com.iptvup.app.core.ui.components.QualityBadge
+import com.iptvup.app.core.ui.components.SearchDialog
+import com.iptvup.app.core.ui.components.SyncOptionsDialog
 import com.iptvup.app.core.ui.theme.Accent
 import com.iptvup.app.core.ui.theme.Primary
 import com.iptvup.app.core.ui.theme.SurfaceDark
@@ -79,6 +82,7 @@ fun EpgScreen(
     val groups by viewModel.groups.collectAsStateWithLifecycle()
     val allGroups by viewModel.allGroups.collectAsStateWithLifecycle()
     val hiddenGroupKeys by viewModel.hiddenGroupKeys.collectAsStateWithLifecycle()
+    val groupCounts by viewModel.groupCounts.collectAsStateWithLifecycle()
     val selectedGroup by viewModel.selectedGroup.collectAsStateWithLifecycle()
     val query by viewModel.query.collectAsStateWithLifecycle()
     val syncing by viewModel.syncing.collectAsStateWithLifecycle()
@@ -86,6 +90,22 @@ fun EpgScreen(
     val error by viewModel.error.collectAsStateWithLifecycle()
     val television = isTelevision()
     var showGroupsDialog by remember { mutableStateOf(false) }
+    var showSearchDialog by remember { mutableStateOf(false) }
+    var showSyncDialog by remember { mutableStateOf(false) }
+
+    val visibleGroups = remember(groups, query) {
+        if (query.isBlank()) {
+            groups
+        } else {
+            groups.filter { it.contains(query, ignoreCase = true) }
+        }
+    }
+    val showingGroupBrowser = selectedGroup == null
+
+    BackHandler(enabled = selectedGroup != null) {
+        viewModel.setQuery("")
+        viewModel.selectGroup(null)
+    }
 
     Column(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp)) {
@@ -98,11 +118,23 @@ fun EpgScreen(
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        text = "${formatDay(ui.windowStart)} · " +
-                            "${formatTime(ui.windowStart)} - ${formatTime(ui.windowEnd)}",
+                        text = if (showingGroupBrowser) {
+                            "${groups.size} grupos · ${ui.channels.size} canales con EPG"
+                        } else {
+                            "${ui.channels.size} canales con EPG"
+                        },
                         color = TextSecondary,
                         style = MaterialTheme.typography.bodySmall
                     )
+                }
+                if (television) {
+                    IconButton(onClick = { showSearchDialog = true }) {
+                        Icon(
+                            imageVector = Icons.Rounded.Search,
+                            contentDescription = "Buscar",
+                            tint = if (query.isNotBlank()) Primary else TextSecondary
+                        )
+                    }
                 }
                 IconButton(onClick = { showGroupsDialog = true }) {
                     Icon(
@@ -126,7 +158,7 @@ fun EpgScreen(
                         overflow = TextOverflow.Ellipsis
                     )
                 } else {
-                    IconButton(onClick = viewModel::sync) {
+                    IconButton(onClick = { showSyncDialog = true }) {
                         Icon(
                             imageVector = Icons.Rounded.Refresh,
                             contentDescription = "Actualizar guía",
@@ -136,61 +168,63 @@ fun EpgScreen(
                 }
             }
 
-            Spacer(Modifier.height(10.dp))
-            OutlinedTextField(
-                value = query,
-                onValueChange = viewModel::setQuery,
-                modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("Buscar canal o grupo") },
-                leadingIcon = {
-                    Icon(Icons.Rounded.Search, contentDescription = null)
-                },
-                trailingIcon = {
-                    if (query.isNotEmpty()) {
-                        IconButton(onClick = { viewModel.setQuery("") }) {
-                            Icon(Icons.Rounded.Clear, contentDescription = "Limpiar")
+            if (!television) {
+                Spacer(Modifier.height(10.dp))
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = viewModel::setQuery,
+                    modifier = Modifier.fillMaxWidth(),
+                    placeholder = { Text("Buscar canal o grupo") },
+                    leadingIcon = {
+                        Icon(Icons.Rounded.Search, contentDescription = null)
+                    },
+                    trailingIcon = {
+                        if (query.isNotEmpty()) {
+                            IconButton(onClick = { viewModel.setQuery("") }) {
+                                Icon(Icons.Rounded.Clear, contentDescription = "Limpiar")
+                            }
                         }
-                    }
-                },
-                singleLine = true,
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedContainerColor = SurfaceDark,
-                    unfocusedContainerColor = SurfaceDark,
-                    focusedBorderColor = Primary,
-                    unfocusedBorderColor = TextSecondary.copy(alpha = 0.25f),
-                    focusedTextColor = TextPrimary,
-                    unfocusedTextColor = TextPrimary,
-                    cursorColor = Primary
+                    },
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedContainerColor = SurfaceDark,
+                        unfocusedContainerColor = SurfaceDark,
+                        focusedBorderColor = Primary,
+                        unfocusedBorderColor = TextSecondary.copy(alpha = 0.25f),
+                        focusedTextColor = TextPrimary,
+                        unfocusedTextColor = TextPrimary,
+                        cursorColor = Primary
+                    )
                 )
-            )
+            }
             error?.let { message ->
                 Spacer(Modifier.height(8.dp))
                 ErrorBanner(message = message, onRetry = viewModel::sync)
             }
 
-            Spacer(Modifier.height(10.dp))
-            LazyRow(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                item {
-                    FilterChip(
-                        selected = selectedGroup == null,
-                        onClick = { viewModel.selectGroup(null) },
-                        label = { Text("Todos") }
-                    )
-                }
-                items(groups, key = { it }) { group ->
-                    FilterChip(
-                        selected = selectedGroup == group,
-                        onClick = { viewModel.selectGroup(group) },
-                        label = {
-                            Text(
-                                text = group,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
+            if (selectedGroup != null) {
+                Spacer(Modifier.height(8.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(
+                        onClick = {
+                            viewModel.setQuery("")
+                            viewModel.selectGroup(null)
                         }
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                            contentDescription = "Volver a grupos",
+                            tint = TextSecondary
+                        )
+                    }
+                    Text(
+                        text = selectedGroup.orEmpty(),
+                        color = TextPrimary,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
                     )
                 }
             }
@@ -198,42 +232,84 @@ fun EpgScreen(
 
         HorizontalDivider(color = SurfaceElevated)
 
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth()
-        ) {
-            if (ui.channels.isEmpty()) {
-                val filtersActive = query.isNotBlank() || selectedGroup != null
+        if (showingGroupBrowser) {
+            if (visibleGroups.isEmpty()) {
                 Box(
                     modifier = Modifier
-                        .fillMaxSize()
+                        .weight(1f)
+                        .fillMaxWidth()
                         .padding(24.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     EmptyState(
-                        title = if (filtersActive) "Sin resultados" else "No hay guía EPG",
-                        message = if (filtersActive) {
-                            "Prueba con otro canal o quita el filtro de grupo."
+                        title = if (query.isBlank()) "No hay grupos" else "Sin resultados",
+                        message = if (query.isBlank()) {
+                            "Actualiza el perfil para descargar los canales y su EPG."
                         } else {
-                            "Actualiza el perfil para descargar el EPG de tus canales. " +
-                                "Si tu proveedor no lo incluye, añade una URL XMLTV al crear el perfil."
+                            "Prueba con otro nombre de grupo."
                         },
-                        actionLabel = if (filtersActive) "Quitar filtros" else "Actualizar EPG",
+                        actionLabel = if (query.isBlank()) "Actualizar EPG" else "Quitar búsqueda",
                         onAction = {
-                            if (filtersActive) {
-                                viewModel.setQuery("")
-                                viewModel.selectGroup(null)
-                            } else {
+                            if (query.isBlank()) {
                                 viewModel.sync()
+                            } else {
+                                viewModel.setQuery("")
                             }
                         }
                     )
                 }
-            } else if (television) {
-                EpgTvList(ui = ui, onPlay = onPlay)
             } else {
-                EpgTimeline(ui = ui, onPlay = onPlay)
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                ) {
+                    GroupGrid(
+                        groups = visibleGroups,
+                        counts = groupCounts,
+                        minCardWidth = if (television) 220.dp else 150.dp,
+                        onSelect = { group ->
+                            viewModel.setQuery("")
+                            viewModel.selectGroup(group)
+                        }
+                    )
+                }
+            }
+        } else {
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+            ) {
+                if (ui.channels.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(24.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        EmptyState(
+                            title = if (query.isNotBlank()) "Sin resultados" else "Sin EPG en este grupo",
+                            message = if (query.isNotBlank()) {
+                                "Prueba con otro canal o quita la búsqueda."
+                            } else {
+                                "No hay programas de EPG para los canales visibles de este grupo."
+                            },
+                            actionLabel = if (query.isNotBlank()) "Quitar búsqueda" else "Volver a grupos",
+                            onAction = {
+                                if (query.isNotBlank()) {
+                                    viewModel.setQuery("")
+                                } else {
+                                    viewModel.selectGroup(null)
+                                }
+                            }
+                        )
+                    }
+                } else if (television) {
+                    EpgTvList(ui = ui, onPlay = onPlay)
+                } else {
+                    EpgTimeline(ui = ui, onPlay = onPlay)
+                }
             }
         }
     }
@@ -246,6 +322,28 @@ fun EpgScreen(
             onShowAll = viewModel::showAllGroups,
             onHideAll = viewModel::hideAllGroups,
             onDismiss = { showGroupsDialog = false }
+        )
+    }
+
+    if (showSearchDialog) {
+        SearchDialog(
+            initialQuery = query,
+            onQueryChange = viewModel::setQuery,
+            onDismiss = { showSearchDialog = false }
+        )
+    }
+
+    if (showSyncDialog) {
+        SyncOptionsDialog(
+            onSyncFiltered = {
+                showSyncDialog = false
+                viewModel.sync()
+            },
+            onSyncAll = {
+                showSyncDialog = false
+                viewModel.syncAll()
+            },
+            onDismiss = { showSyncDialog = false }
         )
     }
 }

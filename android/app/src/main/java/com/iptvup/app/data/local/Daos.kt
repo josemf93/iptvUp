@@ -57,8 +57,14 @@ interface ChannelDao {
     @Query("DELETE FROM channels WHERE profileId = :profileId")
     suspend fun deleteByProfile(profileId: String)
 
+    @Query("DELETE FROM channels WHERE profileId = :profileId AND groupName IN (:groups)")
+    suspend fun deleteByGroups(profileId: String, groups: List<String>)
+
     @Query("SELECT COUNT(*) FROM channels WHERE profileId = :profileId")
     suspend fun count(profileId: String): Int
+
+    @Query("UPDATE channels SET epgChannelId = :epgId WHERE id = :id")
+    suspend fun updateEpgChannelId(id: String, epgId: String)
 
     @Query(
         "SELECT DISTINCT epgChannelId FROM channels " +
@@ -90,6 +96,12 @@ interface EpgDao {
             "AND endMs >= :from AND startMs <= :to ORDER BY startMs"
     )
     suspend fun getWindow(profileId: String, from: Long, to: Long): List<EpgProgramEntity>
+
+    @Query(
+        "SELECT DISTINCT epgChannelId FROM epg_programs WHERE profileId = :profileId " +
+            "AND endMs >= :from AND startMs <= :to"
+    )
+    suspend fun epgIdsWithPrograms(profileId: String, from: Long, to: Long): List<String>
 
     @Query(
         "SELECT * FROM epg_programs WHERE profileId = :profileId AND epgChannelId = :epgId " +

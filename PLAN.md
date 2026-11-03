@@ -9,7 +9,12 @@ Revisión 2: backend Firebase (sin pausas) + actualizaciones in-app sin Play Sto
 
 - [x] Monorepo (`android/`, `web/`, `firebase/`, `updates/`).
 - [x] App Android + Android TV: login, perfiles M3U/Xtream, canales, búsqueda, favoritos, grupos ocultos, reproductor Media3, EPG XMLTV, ajustes.
-- [x] Deduplicación por canal + calidad, filtro multi-grupo y buscador en EPG, historial de últimos 10 canales.
+- [x] Deduplicación eliminada: se conservan todos los canales y variantes de calidad.
+- [x] Sincronización filtrada por grupos visibles, con opción manual de actualizar todo.
+- [x] EPG de respaldo para España desde epgshare01.online.
+- [x] Tarjeta de eventos deportivos con acceso al canal de mejor calidad.
+- [x] Arranque automático en el último perfil usado.
+- [x] Buscador por icono en TV/Guía y eliminación del icono de pantalla completa en TV.
 - [x] Edición de perfiles, iconos de perfil personalizables, Picture-in-Picture y Chromecast (móvil).
 - [x] Android TV y móvil: navegación por tarjetas de grupos con icono y búsqueda, y lista de canales con botón de volver.
 - [x] Sincronización diaria (24 h) con caché inmediata y actualización manual forzada.
@@ -25,7 +30,7 @@ Revisión 2: backend Firebase (sin pausas) + actualizaciones in-app sin Play Sto
 - [ ] Probar con una lista real y un Android TV físico.
 - [x] Sincronización en segundo plano: entrada inmediata con caché y actualización asíncrona al abrir el perfil.
 - [x] Reproductor: guía EPG ampliable, gestos de canal/volumen/brillo y cambio de canal con D-pad en TV.
-- [ ] EPG de respaldo para canales españoles sin `tvg-id`.
+- [x] EPG de respaldo para canales españoles sin `tvg-id` desde epgshare01.online.
 
 ---
 
@@ -307,7 +312,7 @@ Detalles TV imprescindibles:
 - Parser en streaming (no cargar 50 MB en memoria).
 - Soporta `#EXTINF` con `tvg-id`, `tvg-name`, `tvg-logo`, `group-title`, `#EXTGRP`, `#EXTVLCOPT` (User-Agent).
 - Inserción en Room por lotes dentro de transacciones; barra de progreso.
-- Deduplicación por clave estable.
+- Sin deduplicación: se conservan todos los canales; clave única por URL/streamId.
 
 **Xtream Codes**
 - `player_api.php` para categorías y canales.

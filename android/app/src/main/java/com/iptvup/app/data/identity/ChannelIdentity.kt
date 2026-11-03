@@ -26,6 +26,9 @@ object ChannelIdentity {
     fun channelKey(dedupeKey: String): String =
         "ch:" + sha256(dedupeKey).take(20)
 
+    fun uniqueChannelKey(vararg parts: String): String =
+        "ch:" + sha256(parts.joinToString("|")).take(24)
+
     fun qualityScore(channel: ParsedChannel): Int {
         var score = ChannelQuality.score(channel.name)
         if (!channel.epgChannelId.isNullOrBlank()) score += 20
