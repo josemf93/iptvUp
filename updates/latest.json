@@ -1,8 +1,8 @@
 {
-  "versionCode": 9,
-  "versionName": "0.7.1",
-  "apkUrl": "https://github.com/josemf93/iptvUp/releases/download/v0.7.1/IPTVUp-v0.7.1.apk",
-  "sha256": "0bff529673a4f3cffeae6a701f5c13f4bef2618af10f67c3cd32313d6eeb50f8",
+  "versionCode": 10,
+  "versionName": "0.8.0",
+  "apkUrl": "https://github.com/josemf93/iptvUp/releases/download/v0.8.0/IPTVUp-v0.8.0.apk",
+  "sha256": "9d5240031c467f64d27916f1d90fe62d4f0ba175eeaad56aaede646069d3afd7",
   "minSupportedVersionCode": 1,
-  "notes": "La pestaña TV muestra primero los grupos en tarjetas también en móvil. Al entrar en un grupo se abre su lista de canales con buscador y botón para volver a grupos. Incluye la sincronización diaria, iconos de perfil, ajustes globales y EPG limitada a grupos visibles de la 0.7.0."
+  "notes": "Actualización filtrada por grupos visibles (con opción manual de actualizar todo), EPG de respaldo para España desde epgshare, tarjeta de eventos deportivos con acceso al canal, buscador por icono en TV/Guía, sin filtro de duplicados, arranque en el último perfil y limpieza de APKs antiguos."
 }
