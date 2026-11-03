@@ -103,19 +103,20 @@ class HomeViewModel @Inject constructor(
                     hiddenRepository.getHiddenGroups(profileId)
                 }.getOrDefault(emptySet())
                 val channels = channelDao.observeAll(profileId).first()
-                    .filter { it.groupName !in hiddenGroups }
+                    .filter {
+                        it.groupName !in hiddenGroups &&
+                            !ChannelQuality.isJunkChannel(it.name)
+                    }
                 val now = System.currentTimeMillis()
                 val programs = epgDao.getWindow(
                     profileId = profileId,
                     from = now - 6 * 60 * 60 * 1000L,
                     to = now + 36 * 60 * 60 * 1000L
                 )
-                _sportsEvents.value = buildList {
-                    val mapped = raw.map { event -> matchEvent(event, channels, programs) }
-                        .sortedBy { it.event.startMs }
-                    addAll(mapped.filter { it.event.sport == "Fútbol" }.take(6))
-                    addAll(mapped.filter { it.event.sport != "Fútbol" }.take(4))
-                }.sortedBy { it.event.startMs }
+                _sportsEvents.value = raw
+                    .map { event -> matchEvent(event, channels, programs) }
+                    .sortedBy { it.event.startMs }
+                    .take(8)
             } catch (_: Exception) {
                 _sportsEvents.value = emptyList()
             } finally {
@@ -149,7 +150,7 @@ class HomeViewModel @Inject constructor(
             .flatMap { program ->
                 channels.filter { it.epgChannelId == program.epgChannelId }
             }
-            .maxByOrNull { ChannelQuality.score(it.name) }
+            .maxByOrNull { ChannelQuality.sportsRank(it.name) }
         val channel = epgChannel ?: broadcasterChannel(event, channels)
         return SportsEventUi(event = event, channel = channel)
     }
@@ -196,21 +197,6 @@ class HomeViewModel @Inject constructor(
                 "laliga",
                 "m laliga"
             )
-            event.competition == "NBA" -> listOf(
-                "movistar deportes",
-                "movistar plus deportes",
-                "nba",
-                "cuatro",
-                "m deportes"
-            )
-            event.competition == "EuroLeague" -> listOf(
-                "movistar deportes",
-                "movistar plus deportes",
-                "dazn",
-                "euroleague",
-                "m deportes",
-                "deportes"
-            )
             else -> emptyList()
         }
         if (tokens.isEmpty()) return null
@@ -221,7 +207,7 @@ class HomeViewModel @Inject constructor(
                 normalizedChannels
                     .filter { (_, name) -> name.contains(normalizedToken) }
                     .map { it.first }
-                    .maxByOrNull { ChannelQuality.score(it.name) }
+                    .maxByOrNull { ChannelQuality.sportsRank(it.name) }
             }
             .firstOrNull()
     }

@@ -5,6 +5,7 @@ import com.iptvup.app.data.local.ChannelDao
 import com.iptvup.app.data.local.EpgDao
 import com.iptvup.app.data.local.ProfileDao
 import com.iptvup.app.data.local.toEntity
+import com.iptvup.app.data.identity.ChannelQuality
 import com.iptvup.app.data.model.IptvProfile
 import com.iptvup.app.data.model.ProfileCredentials
 import com.iptvup.app.data.model.ProfileKind
@@ -137,6 +138,7 @@ class PlaylistRepository @Inject constructor(
             var epgUrl: String? = null
             maybeGzip(file.inputStream()).bufferedReader().use { reader ->
                 val result = m3uParser.parse(reader, excludedGroups) { parsed ->
+                    if (ChannelQuality.isJunkChannel(parsed.name)) return@parse
                     val entity = parsed.toEntity(profile.id)
                     count++
                     if (collected != null) {
@@ -225,6 +227,7 @@ class PlaylistRepository @Inject constructor(
         val epgIds = channelDao.observeAll(profile.id).first()
             .asSequence()
             .filter { it.groupName !in hiddenGroups }
+            .filter { !ChannelQuality.isJunkChannel(it.name) }
             .mapNotNull { channel ->
                 channel.epgChannelId?.takeIf { it.isNotBlank() }
             }
@@ -272,6 +275,7 @@ class PlaylistRepository @Inject constructor(
         val covered = epgDao.epgIdsWithPrograms(profile.id, from, to).toSet()
         val channels = channelDao.observeAll(profile.id).first()
             .filter { it.groupName !in hiddenGroups }
+            .filter { !ChannelQuality.isJunkChannel(it.name) }
 
         val targets = LinkedHashMap<String, MutableList<String>>()
         val idTargets = LinkedHashMap<String, MutableList<String>>()
@@ -296,19 +300,23 @@ class PlaylistRepository @Inject constructor(
         onStatus("Descargando EPG de respaldo (España)...")
         val file = downloadToCache(EpgFallback.URL, "epg_es_${profile.id}_")
         val matched = HashSet<String>()
+        val inserted = HashSet<String>()
         try {
             if (file.length() == 0L) error("La EPG de respaldo está vacía")
             var count = 0
             val batch = ArrayList<com.iptvup.app.data.local.EpgProgramEntity>(500)
             maybeGzip(file.inputStream()).use { input ->
                 xmltvFallbackParser.parse(input, from, to, targets, idTargets) { program ->
-                    matched += program.epgChannelId
-                    batch += program.toEntity(profile.id)
-                    count++
-                    if (batch.size >= 500) {
-                        runBlocking { epgDao.upsertAll(batch) }
-                        batch.clear()
-                        onStatus("EPG respaldo: $count programas")
+                    val key = "${program.epgChannelId}|${program.startMs}"
+                    if (inserted.add(key)) {
+                        matched += program.epgChannelId
+                        batch += program.toEntity(profile.id)
+                        count++
+                        if (batch.size >= 500) {
+                            runBlocking { epgDao.upsertAll(batch) }
+                            batch.clear()
+                            onStatus("EPG respaldo: $count programas")
+                        }
                     }
                 }
             }

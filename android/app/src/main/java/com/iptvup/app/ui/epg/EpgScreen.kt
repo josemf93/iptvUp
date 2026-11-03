@@ -24,9 +24,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Clear
-import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Search
-import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -56,18 +54,15 @@ import com.iptvup.app.core.ui.components.ChannelLogo
 import com.iptvup.app.core.ui.components.EmptyState
 import com.iptvup.app.core.ui.components.ErrorBanner
 import com.iptvup.app.core.ui.components.GroupGrid
-import com.iptvup.app.core.ui.components.GroupVisibilityDialog
 import com.iptvup.app.core.ui.components.NowNextText
 import com.iptvup.app.core.ui.components.QualityBadge
 import com.iptvup.app.core.ui.components.SearchDialog
-import com.iptvup.app.core.ui.components.SyncOptionsDialog
 import com.iptvup.app.core.ui.theme.Accent
 import com.iptvup.app.core.ui.theme.Primary
 import com.iptvup.app.core.ui.theme.SurfaceDark
 import com.iptvup.app.core.ui.theme.SurfaceElevated
 import com.iptvup.app.core.ui.theme.TextPrimary
 import com.iptvup.app.core.ui.theme.TextSecondary
-import com.iptvup.app.core.ui.util.formatDay
 import com.iptvup.app.core.ui.util.formatTime
 import com.iptvup.app.core.ui.util.isTelevision
 import com.iptvup.app.core.ui.util.progressFraction
@@ -80,18 +75,13 @@ fun EpgScreen(
 ) {
     val ui by viewModel.ui.collectAsStateWithLifecycle()
     val groups by viewModel.groups.collectAsStateWithLifecycle()
-    val allGroups by viewModel.allGroups.collectAsStateWithLifecycle()
-    val hiddenGroupKeys by viewModel.hiddenGroupKeys.collectAsStateWithLifecycle()
     val groupCounts by viewModel.groupCounts.collectAsStateWithLifecycle()
     val selectedGroup by viewModel.selectedGroup.collectAsStateWithLifecycle()
     val query by viewModel.query.collectAsStateWithLifecycle()
-    val syncing by viewModel.syncing.collectAsStateWithLifecycle()
-    val status by viewModel.status.collectAsStateWithLifecycle()
     val error by viewModel.error.collectAsStateWithLifecycle()
+    val ready by viewModel.ready.collectAsStateWithLifecycle()
     val television = isTelevision()
-    var showGroupsDialog by remember { mutableStateOf(false) }
     var showSearchDialog by remember { mutableStateOf(false) }
-    var showSyncDialog by remember { mutableStateOf(false) }
 
     val visibleGroups = remember(groups, query) {
         if (query.isBlank()) {
@@ -118,10 +108,10 @@ fun EpgScreen(
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        text = if (showingGroupBrowser) {
-                            "${groups.size} grupos · ${ui.channels.size} canales con EPG"
-                        } else {
-                            "${ui.channels.size} canales con EPG"
+                        text = when {
+                            !ready -> "Cargando..."
+                            showingGroupBrowser -> "${groups.size} grupos · ${ui.channels.size} canales"
+                            else -> "${ui.channels.size} canales"
                         },
                         color = TextSecondary,
                         style = MaterialTheme.typography.bodySmall
@@ -133,36 +123,6 @@ fun EpgScreen(
                             imageVector = Icons.Rounded.Search,
                             contentDescription = "Buscar",
                             tint = if (query.isNotBlank()) Primary else TextSecondary
-                        )
-                    }
-                }
-                IconButton(onClick = { showGroupsDialog = true }) {
-                    Icon(
-                        imageVector = Icons.Rounded.Tune,
-                        contentDescription = "Gestionar grupos",
-                        tint = TextSecondary
-                    )
-                }
-                if (syncing) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(22.dp),
-                        color = Primary,
-                        strokeWidth = 2.dp
-                    )
-                    Spacer(Modifier.width(10.dp))
-                    Text(
-                        text = status.ifBlank { "Actualizando..." },
-                        color = TextSecondary,
-                        style = MaterialTheme.typography.labelSmall,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                } else {
-                    IconButton(onClick = { showSyncDialog = true }) {
-                        Icon(
-                            imageVector = Icons.Rounded.Refresh,
-                            contentDescription = "Actualizar guía",
-                            tint = TextSecondary
                         )
                     }
                 }
@@ -232,7 +192,16 @@ fun EpgScreen(
 
         HorizontalDivider(color = SurfaceElevated)
 
-        if (showingGroupBrowser) {
+        if (!ready) {
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator(color = Primary)
+            }
+        } else if (showingGroupBrowser) {
             if (visibleGroups.isEmpty()) {
                 Box(
                     modifier = Modifier
@@ -248,13 +217,11 @@ fun EpgScreen(
                         } else {
                             "Prueba con otro nombre de grupo."
                         },
-                        actionLabel = if (query.isBlank()) "Actualizar EPG" else "Quitar búsqueda",
-                        onAction = {
-                            if (query.isBlank()) {
-                                viewModel.sync()
-                            } else {
-                                viewModel.setQuery("")
-                            }
+                        actionLabel = if (query.isBlank()) null else "Quitar búsqueda",
+                        onAction = if (query.isBlank()) {
+                            null
+                        } else {
+                            { viewModel.setQuery("") }
                         }
                     )
                 }
@@ -289,19 +256,17 @@ fun EpgScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         EmptyState(
-                            title = if (query.isNotBlank()) "Sin resultados" else "Sin EPG en este grupo",
+                            title = if (query.isNotBlank()) "Sin resultados" else "Sin canales en este grupo",
                             message = if (query.isNotBlank()) {
                                 "Prueba con otro canal o quita la búsqueda."
                             } else {
-                                "No hay programas de EPG para los canales visibles de este grupo."
+                                "No hay canales visibles en este grupo."
                             },
-                            actionLabel = if (query.isNotBlank()) "Quitar búsqueda" else "Volver a grupos",
-                            onAction = {
-                                if (query.isNotBlank()) {
-                                    viewModel.setQuery("")
-                                } else {
-                                    viewModel.selectGroup(null)
-                                }
+                            actionLabel = if (query.isNotBlank()) "Quitar búsqueda" else null,
+                            onAction = if (query.isNotBlank()) {
+                                { viewModel.setQuery("") }
+                            } else {
+                                null
                             }
                         )
                     }
@@ -314,36 +279,11 @@ fun EpgScreen(
         }
     }
 
-    if (showGroupsDialog) {
-        GroupVisibilityDialog(
-            groups = allGroups,
-            hiddenGroups = hiddenGroupKeys,
-            onToggle = viewModel::toggleGroupHidden,
-            onShowAll = viewModel::showAllGroups,
-            onHideAll = viewModel::hideAllGroups,
-            onDismiss = { showGroupsDialog = false }
-        )
-    }
-
     if (showSearchDialog) {
         SearchDialog(
             initialQuery = query,
             onQueryChange = viewModel::setQuery,
             onDismiss = { showSearchDialog = false }
-        )
-    }
-
-    if (showSyncDialog) {
-        SyncOptionsDialog(
-            onSyncFiltered = {
-                showSyncDialog = false
-                viewModel.sync()
-            },
-            onSyncAll = {
-                showSyncDialog = false
-                viewModel.syncAll()
-            },
-            onDismiss = { showSyncDialog = false }
         )
     }
 }
@@ -406,14 +346,6 @@ private fun EpgTvRow(
                     modifier = Modifier.weight(1f)
                 )
                 QualityBadge(item.channel.name)
-                Text(
-                    text = item.channel.groupName,
-                    color = TextSecondary,
-                    style = MaterialTheme.typography.labelSmall,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(start = 8.dp)
-                )
             }
             Spacer(Modifier.height(4.dp))
             NowNextText(

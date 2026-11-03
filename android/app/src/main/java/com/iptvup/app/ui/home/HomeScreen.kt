@@ -217,7 +217,7 @@ private fun SportsCard(
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        text = "Fútbol y baloncesto · hoy",
+                        text = "Fútbol · hoy",
                         color = Color.White.copy(alpha = 0.7f),
                         style = MaterialTheme.typography.labelSmall
                     )
@@ -241,41 +241,19 @@ private fun SportsCard(
                 }
 
                 events.isEmpty() -> Text(
-                    text = "No hay eventos de fútbol o baloncesto para hoy.",
+                    text = "No hay partidos de fútbol para hoy.",
                     color = Color.White.copy(alpha = 0.75f),
                     style = MaterialTheme.typography.bodySmall
                 )
 
                 else -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    val football = events.filter { it.event.sport == "Fútbol" }
-                    val basketball = events.filter { it.event.sport != "Fútbol" }
-                    if (football.isNotEmpty()) {
-                        SportsSectionHeader("Fútbol")
-                        football.forEach { event ->
-                            SportsEventRow(event = event, onPlay = onPlay)
-                        }
-                    }
-                    if (basketball.isNotEmpty()) {
-                        if (football.isNotEmpty()) Spacer(Modifier.height(4.dp))
-                        SportsSectionHeader("Baloncesto")
-                        basketball.forEach { event ->
-                            SportsEventRow(event = event, onPlay = onPlay)
-                        }
+                    events.forEach { event ->
+                        SportsEventRow(event = event, onPlay = onPlay)
                     }
                 }
             }
         }
     }
-}
-
-@Composable
-private fun SportsSectionHeader(title: String) {
-    Text(
-        text = title.uppercase(),
-        color = Color.White.copy(alpha = 0.65f),
-        style = MaterialTheme.typography.labelSmall,
-        fontWeight = FontWeight.Bold
-    )
 }
 
 @Composable
@@ -303,7 +281,7 @@ private fun SportsEventRow(
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        text = " · ${event.event.competition} · ${event.event.sport}",
+                        text = " · ${event.event.competition}",
                         color = TextSecondary,
                         style = MaterialTheme.typography.labelSmall,
                         maxLines = 1,

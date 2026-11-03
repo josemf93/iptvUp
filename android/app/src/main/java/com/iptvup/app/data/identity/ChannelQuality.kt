@@ -15,6 +15,22 @@ object ChannelQuality {
         else -> 0
     }
 
+    /**
+     * Prioridad para elegir el canal de un evento deportivo:
+     * 8K/4K > 1080/FHD > 720/HD > SD > sin calidad conocida.
+     */
+    fun sportsRank(name: String): Int = when (detect(name)) {
+        "8K" -> 5
+        "4K" -> 4
+        "FHD" -> 3
+        "HD" -> 2
+        "SD" -> 1
+        else -> 0
+    }
+
+    fun isJunkChannel(name: String): Boolean =
+        name.trimStart().startsWith("##")
+
     fun baseName(name: String): String = name
         .replace(QUALITY_IN_NAME_REGEX, " ")
         .replace(WHITESPACE_REGEX, " ")

@@ -8,6 +8,8 @@ import com.iptvup.app.data.local.ChannelEntity
 import com.iptvup.app.data.local.EpgDao
 import com.iptvup.app.data.local.EpgProgramEntity
 import com.iptvup.app.data.local.HiddenItemEntity
+import com.iptvup.app.data.local.dedupePrograms
+import com.iptvup.app.data.identity.ChannelQuality
 import com.iptvup.app.data.repository.HiddenRepository
 import com.iptvup.app.data.sync.SyncManager
 import com.iptvup.app.data.sync.SyncState
@@ -18,6 +20,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.isActive
@@ -50,6 +53,9 @@ class EpgViewModel @Inject constructor(
 
     private val _windowStart = MutableStateFlow(roundToHalfHour(System.currentTimeMillis()))
     private val _programs = MutableStateFlow<List<EpgProgramEntity>>(emptyList())
+
+    private val _ready = MutableStateFlow(false)
+    val ready: StateFlow<Boolean> = _ready.asStateFlow()
 
     private val _selectedGroup = MutableStateFlow<String?>(null)
     val selectedGroup: StateFlow<String?> = _selectedGroup.asStateFlow()
@@ -108,7 +114,11 @@ class EpgViewModel @Inject constructor(
     )
 
     val groupCounts = channelDao.observeAll(profileId)
-        .map { all -> all.groupBy { it.groupName }.mapValues { it.value.size } }
+        .map { all ->
+            all.filter { !ChannelQuality.isJunkChannel(it.name) }
+                .groupBy { it.groupName }
+                .mapValues { it.value.size }
+        }
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),
@@ -148,19 +158,25 @@ class EpgViewModel @Inject constructor(
             .map { it.itemKey }
             .toSet()
         val byEpgId = programs.groupBy { it.epgChannelId }
+            .mapValues { (_, list) -> list.dedupePrograms() }
         val now = System.currentTimeMillis()
         val visibleChannels = channels
             .asSequence()
             .filter { it.groupName !in hiddenGroups }
+            .filter { !ChannelQuality.isJunkChannel(it.name) }
             .filter { selectedGroup == null || it.groupName == selectedGroup }
             .filter {
                 query.isBlank() ||
                     it.name.contains(query, ignoreCase = true) ||
                     it.groupName.contains(query, ignoreCase = true)
             }
-            .mapNotNull { channel ->
-                val epgId = channel.epgChannelId ?: return@mapNotNull null
-                val list = byEpgId[epgId].orEmpty().sortedBy { it.startMs }
+            .map { channel ->
+                val epgId = channel.epgChannelId
+                val list = if (epgId == null) {
+                    emptyList()
+                } else {
+                    byEpgId[epgId].orEmpty().sortedBy { it.startMs }
+                }
                 EpgChannelUi(
                     channel = channel,
                     programs = list,
@@ -187,6 +203,12 @@ class EpgViewModel @Inject constructor(
     init {
         viewModelScope.launch {
             runCatching { hiddenRepository.refresh(profileId) }
+        }
+        viewModelScope.launch {
+            channelDao.observeAll(profileId).first()
+            loadPrograms()
+            kotlinx.coroutines.delay(100)
+            _ready.value = true
         }
         viewModelScope.launch {
             syncManager.state.collect { state ->

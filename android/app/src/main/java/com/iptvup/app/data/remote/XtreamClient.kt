@@ -1,6 +1,7 @@
 package com.iptvup.app.data.remote
 
 import com.iptvup.app.data.identity.ChannelIdentity
+import com.iptvup.app.data.identity.ChannelQuality
 import com.iptvup.app.data.model.ParsedChannel
 import com.iptvup.app.data.model.ProfileCredentials
 import kotlinx.coroutines.Dispatchers
@@ -108,6 +109,7 @@ class XtreamClient @Inject constructor(
                 ?.takeIf { it != "null" && it.isNotBlank() }
                 ?: continue
             val name = item.optString("name", "").ifBlank { "Canal $streamId" }
+            if (ChannelQuality.isJunkChannel(name)) continue
             val categoryId = item.opt("category_id")?.toString().orEmpty()
             val group = categories[categoryId].orEmpty().ifBlank { "Sin grupo" }
             val epgId = item.opt("epg_channel_id")?.toString()

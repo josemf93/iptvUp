@@ -8,6 +8,8 @@ import com.iptvup.app.data.local.ChannelDao
 import com.iptvup.app.data.local.EpgDao
 import com.iptvup.app.data.local.HiddenItemEntity
 import com.iptvup.app.data.local.toParsedProgram
+import com.iptvup.app.data.local.dedupePrograms
+import com.iptvup.app.data.identity.ChannelQuality
 import com.iptvup.app.data.model.EpgEntry
 import com.iptvup.app.data.repository.FavoritesRepository
 import com.iptvup.app.data.repository.HiddenRepository
@@ -86,6 +88,9 @@ class LiveViewModel @Inject constructor(
 
     private val _epg = MutableStateFlow<Map<String, EpgEntry>>(emptyMap())
 
+    private val _ready = MutableStateFlow(false)
+    val ready: StateFlow<Boolean> = _ready.asStateFlow()
+
     val favorites = favoritesRepository.observe(profileId).stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
@@ -122,7 +127,11 @@ class LiveViewModel @Inject constructor(
     )
 
     val groupCounts = channelDao.observeAll(profileId)
-        .map { all -> all.groupBy { it.groupName }.mapValues { it.value.size } }
+        .map { all ->
+            all.filter { !ChannelQuality.isJunkChannel(it.name) }
+                .groupBy { it.groupName }
+                .mapValues { it.value.size }
+        }
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),
@@ -149,6 +158,7 @@ class LiveViewModel @Inject constructor(
             .toSet()
         all.asSequence()
             .filter { it.groupName !in hiddenGroups }
+            .filter { !ChannelQuality.isJunkChannel(it.name) }
             .filter { group == null || it.groupName == group }
             .filter {
                 text.isBlank() ||
@@ -173,6 +183,10 @@ class LiveViewModel @Inject constructor(
         viewModelScope.launch {
             runCatching { favoritesRepository.refresh(profileId) }
             runCatching { hiddenRepository.refresh(profileId) }
+        }
+        viewModelScope.launch {
+            combine(channelDao.observeAll(profileId), hidden) { channels, _ -> channels }
+                .collect { _ready.value = true }
         }
         viewModelScope.launch {
             if (channelDao.count(profileId) == 0) {
@@ -263,6 +277,7 @@ class LiveViewModel @Inject constructor(
             to = now + 6 * 60 * 60 * 1000L
         )
         val byEpgId = programs.groupBy { it.epgChannelId }
+            .mapValues { (_, list) -> list.dedupePrograms() }
         val channelsSnapshot = channelDao.observeAll(profileId).first()
         _epg.value = channelsSnapshot.mapNotNull { channel ->
             val epgId = channel.epgChannelId ?: return@mapNotNull null

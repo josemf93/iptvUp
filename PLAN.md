@@ -12,7 +12,7 @@ Revisión 2: backend Firebase (sin pausas) + actualizaciones in-app sin Play Sto
 - [x] Deduplicación eliminada: se conservan todos los canales y variantes de calidad.
 - [x] Sincronización filtrada por grupos visibles, con opción manual de actualizar todo.
 - [x] EPG de respaldo para España desde epgshare01.online.
-- [x] Tarjeta de eventos deportivos con acceso al canal de mejor calidad.
+- [x] Tarjeta de eventos deportivos de fútbol con acceso al canal visible de mejor calidad.
 - [x] Arranque automático en el último perfil usado.
 - [x] Buscador por icono en TV/Guía y eliminación del icono de pantalla completa en TV.
 - [x] Edición de perfiles, iconos de perfil personalizables, Picture-in-Picture y Chromecast (móvil).

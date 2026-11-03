@@ -154,3 +154,20 @@ fun EpgProgramEntity.toParsedProgram(): ParsedProgram = ParsedProgram(
     title = title,
     description = description
 )
+
+/**
+ * Elimina programas duplicados o solapados del mismo canal. Se queda con el
+ * primero de cada hora de inicio y descarta los que empiezan antes de que
+ * termine el anterior.
+ */
+fun List<EpgProgramEntity>.dedupePrograms(): List<EpgProgramEntity> {
+    val result = ArrayList<EpgProgramEntity>(size)
+    val starts = HashSet<Long>()
+    sortedBy { it.startMs }.forEach { program ->
+        val overlaps = result.isNotEmpty() && program.startMs < result.last().endMs
+        if (!overlaps && starts.add(program.startMs)) {
+            result += program
+        }
+    }
+    return result
+}

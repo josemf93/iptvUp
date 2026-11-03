@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.iptvup.app.data.local.ChannelDao
 import com.iptvup.app.data.local.ChannelEntity
+import com.iptvup.app.data.identity.ChannelQuality
 import com.iptvup.app.data.repository.FavoritesRepository
 import com.iptvup.app.data.repository.HiddenRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -39,7 +40,8 @@ class FavoritesViewModel @Inject constructor(
             .toSet()
         all.filter {
             it.channelKey in favoriteKeys &&
-                it.groupName !in hiddenGroups
+                it.groupName !in hiddenGroups &&
+                !ChannelQuality.isJunkChannel(it.name)
         }
     }.stateIn(
         scope = viewModelScope,

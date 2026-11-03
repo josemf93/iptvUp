@@ -8,6 +8,7 @@ import com.iptvup.app.data.local.ChannelEntity
 import com.iptvup.app.data.local.EpgDao
 import com.iptvup.app.data.local.EpgProgramEntity
 import com.iptvup.app.data.local.toParsedProgram
+import com.iptvup.app.data.local.dedupePrograms
 import com.iptvup.app.data.model.EpgEntry
 import com.iptvup.app.data.repository.FavoritesRepository
 import com.iptvup.app.data.repository.HiddenRepository
@@ -123,17 +124,17 @@ class PlayerViewModel @Inject constructor(
             return
         }
         val now = System.currentTimeMillis()
-        val nowProgram = epgDao.getNow(channel.profileId, epgId, now)
-        val nextProgram = epgDao.getNext(channel.profileId, epgId, now)
-        _epg.value = EpgEntry(
-            now = nowProgram?.toParsedProgram(),
-            next = nextProgram?.toParsedProgram()
-        )
-        _epgPrograms.value = epgDao.getForChannel(
+        val programs = epgDao.getForChannel(
             profileId = channel.profileId,
             epgId = epgId,
             from = now - 2 * 60 * 60 * 1000L,
             to = now + 24 * 60 * 60 * 1000L
+        ).dedupePrograms()
+        _epgPrograms.value = programs
+        _epg.value = EpgEntry(
+            now = programs.lastOrNull { it.startMs <= now && it.endMs > now }
+                ?.toParsedProgram(),
+            next = programs.firstOrNull { it.startMs > now }?.toParsedProgram()
         )
     }
 }

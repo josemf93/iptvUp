@@ -85,6 +85,7 @@ fun LiveScreen(
     val syncing by viewModel.syncing.collectAsStateWithLifecycle()
     val status by viewModel.status.collectAsStateWithLifecycle()
     val error by viewModel.error.collectAsStateWithLifecycle()
+    val ready by viewModel.ready.collectAsStateWithLifecycle()
 
     var showGroupsDialog by remember { mutableStateOf(false) }
     var showSearchDialog by remember { mutableStateOf(false) }
@@ -124,7 +125,9 @@ fun LiveScreen(
                             fontWeight = FontWeight.Bold
                         )
                         Text(
-                            text = if (showingGroupBrowser) {
+                            text = if (!ready) {
+                                "Cargando..."
+                            } else if (showingGroupBrowser) {
                                 "${groups.size} grupos · ${channels.size} canales"
                             } else {
                                 "${channels.size} canales visibles"
@@ -259,7 +262,16 @@ fun LiveScreen(
                 )
             }
 
-            if (showingGroupBrowser) {
+            if (!ready) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(24.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator(color = Primary)
+                }
+            } else if (showingGroupBrowser) {
                 if (visibleGroups.isEmpty()) {
                     Box(
                         modifier = Modifier
@@ -476,14 +488,6 @@ private fun ChannelRow(
                     modifier = Modifier.weight(1f)
                 )
                 QualityBadge(item.channel.name)
-                Text(
-                    text = item.channel.groupName,
-                    color = TextSecondary,
-                    style = MaterialTheme.typography.labelSmall,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(start = 8.dp)
-                )
             }
             Spacer(Modifier.height(3.dp))
             NowNextText(

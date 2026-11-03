@@ -183,9 +183,7 @@ class SportsRepository @Inject constructor(
             SportsSource("soccer/esp.supercopa", "Fútbol", "Supercopa", spanishOnly = false),
             SportsSource("soccer/uefa.champions", "Fútbol", "Champions League", spanishOnly = true),
             SportsSource("soccer/uefa.europa", "Fútbol", "Europa League", spanishOnly = true),
-            SportsSource("soccer/uefa.europa.conf", "Fútbol", "Conference League", spanishOnly = true),
-            SportsSource("basketball/euroleague", "Baloncesto", "EuroLeague", spanishOnly = false),
-            SportsSource("basketball/nba", "Baloncesto", "NBA", spanishOnly = false)
+            SportsSource("soccer/uefa.europa.conf", "Fútbol", "Conference League", spanishOnly = true)
         )
 
         val SPANISH_TOKENS = setOf(
@@ -195,10 +193,7 @@ class SportsRepository @Inject constructor(
             "leganes", "elche", "levante", "zaragoza", "malaga", "racing",
             "sporting", "deportivo", "granada", "valladolid", "tenerife",
             "huesca", "eibar", "almeria", "cadiz", "cordoba", "oviedo",
-            "numancia", "mirandes", "albacete", "burgos", "santander",
-            "baskonia", "unicaja", "joventut", "bilbao", "murcia", "andorra",
-            "breogan", "obradoiro", "fuenlabrada", "estudiantes", "penya",
-            "canaria"
+            "numancia", "mirandes", "albacete", "burgos", "santander"
         )
 
         val DATE_PATTERNS = listOf(
