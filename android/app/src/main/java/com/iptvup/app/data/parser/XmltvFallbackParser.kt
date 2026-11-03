@@ -18,12 +18,13 @@ class XmltvFallbackParser @Inject constructor() {
         fromMs: Long,
         toMs: Long,
         targets: Map<String, List<String>>,
+        idTargets: Map<String, List<String>> = emptyMap(),
         onProgram: (ParsedProgram) -> Unit
     ): Int {
         val factory = SAXParserFactory.newInstance().apply {
             isNamespaceAware = false
         }
-        val handler = Handler(fromMs, toMs, targets, onProgram)
+        val handler = Handler(fromMs, toMs, targets, idTargets, onProgram)
         factory.newSAXParser().parse(input, handler)
         return handler.count
     }
@@ -32,6 +33,7 @@ class XmltvFallbackParser @Inject constructor() {
         private val fromMs: Long,
         private val toMs: Long,
         private val targets: Map<String, List<String>>,
+        private val idTargets: Map<String, List<String>>,
         private val onProgram: (ParsedProgram) -> Unit
     ) : DefaultHandler() {
 
@@ -71,16 +73,18 @@ class XmltvFallbackParser @Inject constructor() {
                 "programme" -> {
                     val sourceChannel = attributes?.getValue("channel")?.trim().orEmpty()
                     val sourceName = sourceNames[sourceChannel]
-                    val targetIds = sourceName?.let {
-                        targets[EpgFallback.normalize(it)]
-                    }.orEmpty()
+                    val targetIds = LinkedHashSet<String>()
+                    idTargets[sourceChannel]?.let(targetIds::addAll)
+                    sourceName?.let { name ->
+                        targets[EpgFallback.normalize(name)]?.let(targetIds::addAll)
+                    }
                     val start = XmltvParser.parseXmltvTime(attributes?.getValue("start"))
                     val stop = XmltvParser.parseXmltvTime(attributes?.getValue("stop"))
                     val inWindow = start != null && stop != null &&
                         stop > fromMs && start <= toMs
                     active = targetIds.isNotEmpty() && inWindow
                     if (active) {
-                        currentTargets = targetIds
+                        currentTargets = targetIds.toList()
                         currentStart = start!!
                         currentStop = stop!!
                         title.clear()

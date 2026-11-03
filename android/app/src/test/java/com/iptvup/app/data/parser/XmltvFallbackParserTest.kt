@@ -30,11 +30,35 @@ class XmltvFallbackParserTest {
             toMs = Long.MAX_VALUE,
             targets = targets
         ) { programs += it }
-
         assertEquals(1, count)
         assertEquals(1, programs.size)
         assertEquals("provider-la1", programs.first().epgChannelId)
         assertEquals("Telediario", programs.first().title)
+    }
+
+    @Test
+    fun matchesDirectEpgIdWhenNameDiffers() {
+        val xml = """
+            <tv>
+              <channel id="la1.es">
+                <display-name>Nombre distinto</display-name>
+              </channel>
+              <programme channel="la1.es" start="20261103180000 +0100" stop="20261103190000 +0100">
+                <title>Telediario</title>
+              </programme>
+            </tv>
+        """.trimIndent()
+        val programs = mutableListOf<ParsedProgram>()
+        val count = XmltvFallbackParser().parse(
+            input = ByteArrayInputStream(xml.toByteArray()),
+            fromMs = 0L,
+            toMs = Long.MAX_VALUE,
+            targets = emptyMap(),
+            idTargets = mapOf("la1.es" to listOf("provider-la1"))
+        ) { programs += it }
+
+        assertEquals(1, count)
+        assertEquals("provider-la1", programs.first().epgChannelId)
     }
 
     @Test

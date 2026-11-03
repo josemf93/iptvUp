@@ -274,14 +274,18 @@ class PlaylistRepository @Inject constructor(
             .filter { it.groupName !in hiddenGroups }
 
         val targets = LinkedHashMap<String, MutableList<String>>()
+        val idTargets = LinkedHashMap<String, MutableList<String>>()
         val syntheticChannels = LinkedHashMap<String, String>()
         channels.forEach { channel ->
             val normalized = EpgFallback.normalize(channel.name)
             if (normalized.isBlank()) return@forEach
-            val epgId = channel.epgChannelId?.takeIf { it.isNotBlank() }
-                ?: EpgFallback.syntheticId(channel.name)
+            val providerId = channel.epgChannelId?.takeIf { it.isNotBlank() }
+            val epgId = providerId ?: EpgFallback.syntheticId(channel.name)
             if (epgId in covered) return@forEach
-            if (channel.epgChannelId.isNullOrBlank()) {
+            if (providerId != null) {
+                idTargets.getOrPut(providerId) { mutableListOf() }
+                    .apply { if (providerId !in this) add(providerId) }
+            } else {
                 syntheticChannels[channel.id] = epgId
             }
             targets.getOrPut(normalized) { mutableListOf() }
@@ -297,7 +301,7 @@ class PlaylistRepository @Inject constructor(
             var count = 0
             val batch = ArrayList<com.iptvup.app.data.local.EpgProgramEntity>(500)
             maybeGzip(file.inputStream()).use { input ->
-                xmltvFallbackParser.parse(input, from, to, targets) { program ->
+                xmltvFallbackParser.parse(input, from, to, targets, idTargets) { program ->
                     matched += program.epgChannelId
                     batch += program.toEntity(profile.id)
                     count++
