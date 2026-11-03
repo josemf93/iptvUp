@@ -19,7 +19,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -36,15 +35,25 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.components.ChannelLogo
+import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.components.EmptyState
+import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.components.QualityBadge
+import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.theme.Accent
+import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.theme.Primary
+import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.theme.SurfaceDark
+import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.theme.SurfaceElevated
+import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.theme.TextPrimary
+import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.theme.TextSecondary
+import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.data.local.ChannelEntity
 
 @Composable
@@ -155,7 +164,7 @@ private fun FavoriteRow(
                 QualityBadge(channel.name)
             }
         }
-        IconButton(onClick = onRemove) {
+        TvIconButton(onClick = onRemove) {
             Icon(
                 imageVector = Icons.Rounded.Star,
                 contentDescription = "Quitar de favoritos",

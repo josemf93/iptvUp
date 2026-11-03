@@ -14,7 +14,10 @@ import com.iptvup.app.data.model.EpgEntry
 import com.iptvup.app.data.repository.FavoritesRepository
 import com.iptvup.app.data.repository.HiddenRepository
 import com.iptvup.app.data.repository.RecentRepository
+import android.content.Context
+import androidx.media3.exoplayer.ExoPlayer
 import dagger.hilt.android.lifecycle.HiltViewModel
+import okhttp3.OkHttpClient
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -38,10 +41,13 @@ class PlayerViewModel @Inject constructor(
     private val epgDao: EpgDao,
     private val favoritesRepository: FavoritesRepository,
     private val hiddenRepository: HiddenRepository,
-    private val recentRepository: RecentRepository
+    private val recentRepository: RecentRepository,
+    private val okHttp: OkHttpClient
 ) : ViewModel() {
 
     val channelId: String = checkNotNull(savedStateHandle["channelId"])
+
+    fun createPlayer(context: Context): ExoPlayer = buildStreamPlayer(context, okHttp)
 
     private val _channel = MutableStateFlow<ChannelEntity?>(null)
     val channel: StateFlow<ChannelEntity?> = _channel.asStateFlow()
@@ -153,19 +159,10 @@ class PlayerViewModel @Inject constructor(
                 .lowercase()
             if (baseName.isBlank()) return@launch
 
-            val hiddenGroups = runCatching {
-                hiddenRepository.observe(channel.profileId).first()
-            }.getOrDefault(emptyList())
-                .filter { it.kind == HiddenRepository.KIND_GROUP }
-                .map { it.itemKey }
-                .toSet()
-
-            fallbackCandidates = channelDao.observeAll(channel.profileId).first()
+            fallbackCandidates = channelDao.getVisible(channel.profileId)
                 .asSequence()
                 .filter { it.id != channel.id }
                 .filter { it.streamUrl != channel.streamUrl }
-                .filter { it.groupName !in hiddenGroups }
-                .filter { !ChannelQuality.isJunkChannel(it.name) }
                 .filter { ChannelQuality.label(it.name) != "8K" }
                 .filter {
                     ChannelQuality.baseName(it.name).trim().lowercase() == baseName

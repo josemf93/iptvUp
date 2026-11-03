@@ -50,11 +50,12 @@ class XmltvParser @Inject constructor() {
             when (name) {
                 "programme" -> {
                     val channel = attributes?.getValue("channel")?.trim().orEmpty()
-                    val start = parseXmltvTime(attributes?.getValue("start"))
-                    val stop = parseXmltvTime(attributes?.getValue("stop"))
-                    val allowed = allowedEpgIds == null || channel in allowedEpgIds
+                    val allowed = channel.isNotBlank() &&
+                        (allowedEpgIds == null || channel in allowedEpgIds)
+                    val start = if (allowed) parseXmltvTime(attributes?.getValue("start")) else null
+                    val stop = if (allowed) parseXmltvTime(attributes?.getValue("stop")) else null
                     val inWindow = start != null && stop != null && stop > fromMs && start <= toMs
-                    active = channel.isNotBlank() && start != null && stop != null && allowed && inWindow
+                    active = allowed && start != null && stop != null && inWindow
                     if (active) {
                         currentChannel = channel
                         currentStart = start!!
@@ -118,14 +119,17 @@ class XmltvParser @Inject constructor() {
             "yyyyMMddHHmm"
         )
 
+        private val FORMATS: ThreadLocal<List<SimpleDateFormat>> = ThreadLocal.withInitial {
+            DATE_FORMATS.map { pattern ->
+                SimpleDateFormat(pattern, Locale.US).apply { isLenient = false }
+            }
+        }
+
         fun parseXmltvTime(raw: String?): Long? {
             if (raw.isNullOrBlank()) return null
             val value = raw.trim()
-            for (pattern in DATE_FORMATS) {
+            for (format in FORMATS.get()!!) {
                 try {
-                    val format = SimpleDateFormat(pattern, Locale.US).apply {
-                        isLenient = false
-                    }
                     return format.parse(value)?.time
                 } catch (_: Exception) {
                     // Try the next format.

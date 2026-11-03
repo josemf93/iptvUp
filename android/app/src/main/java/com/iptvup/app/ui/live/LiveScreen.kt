@@ -30,7 +30,6 @@ import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -51,24 +50,43 @@ import androidx.compose.ui.unit.dp
 import androidx.activity.compose.BackHandler
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.components.ChannelLogo
+import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.components.EmptyState
+import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.components.ErrorBanner
+import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.components.GroupGrid
+import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.components.GroupOrderDialog
+import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.components.GroupVisibilityDialog
+import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.components.NowNextText
+import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.components.QualityBadge
+import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.components.SearchDialog
+import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.theme.Accent
+import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.theme.Primary
+import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.theme.SurfaceDark
+import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.theme.SurfaceElevated
+import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.theme.TextPrimary
+import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.theme.TextSecondary
+import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.util.formatTime
+import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.util.isTelevision
+import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.util.progressFraction
+import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.data.repository.HiddenRepository
 
 @Composable
@@ -76,13 +94,15 @@ fun LiveScreen(
     onPlay: (String) -> Unit,
     viewModel: LiveViewModel = hiltViewModel()
 ) {
-    val channels by viewModel.channels.collectAsStateWithLifecycle()
+    val channelsState by viewModel.channels.collectAsStateWithLifecycle()
     val groups by viewModel.groups.collectAsStateWithLifecycle()
     val allGroups by viewModel.allGroups.collectAsStateWithLifecycle()
     val groupCounts by viewModel.groupCounts.collectAsStateWithLifecycle()
     val hidden by viewModel.hidden.collectAsStateWithLifecycle()
     val query by viewModel.query.collectAsStateWithLifecycle()
     val selectedGroup by viewModel.selectedGroup.collectAsStateWithLifecycle()
+    val channels = channelsState.items
+    val channelsLoaded = channelsState.group == selectedGroup
     val syncing by viewModel.syncing.collectAsStateWithLifecycle()
     val status by viewModel.status.collectAsStateWithLifecycle()
     val error by viewModel.error.collectAsStateWithLifecycle()
@@ -152,7 +172,7 @@ fun LiveScreen(
                             overflow = TextOverflow.Ellipsis
                         )
                     } else {
-                        IconButton(onClick = viewModel::sync) {
+                        TvIconButton(onClick = viewModel::sync) {
                             Icon(
                                 imageVector = Icons.Rounded.Refresh,
                                 contentDescription = "Actualizar lista",
@@ -173,7 +193,7 @@ fun LiveScreen(
                 if (selectedGroup != null) {
                     Spacer(Modifier.height(8.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(
+                        TvIconButton(
                             onClick = {
                                 viewModel.setQuery("")
                                 viewModel.selectGroup(null)
@@ -195,7 +215,7 @@ fun LiveScreen(
                             modifier = Modifier.weight(1f)
                         )
                         if (isTv) {
-                            IconButton(onClick = { showSearchDialog = true }) {
+                            TvIconButton(onClick = { showSearchDialog = true }) {
                                 Icon(
                                     imageVector = Icons.Rounded.Search,
                                     contentDescription = "Buscar",
@@ -203,7 +223,7 @@ fun LiveScreen(
                                 )
                             }
                         }
-                        IconButton(onClick = { showGroupsDialog = true }) {
+                        TvIconButton(onClick = { showGroupsDialog = true }) {
                             Icon(
                                 imageVector = Icons.Rounded.Tune,
                                 contentDescription = "Gestionar grupos",
@@ -231,7 +251,7 @@ fun LiveScreen(
                             fontWeight = FontWeight.SemiBold,
                             modifier = Modifier.weight(1f)
                         )
-                        IconButton(onClick = { showOrderDialog = true }) {
+                        TvIconButton(onClick = { showOrderDialog = true }) {
                             Icon(
                                 imageVector = Icons.Rounded.SwapVert,
                                 contentDescription = "Ordenar grupos",
@@ -239,7 +259,7 @@ fun LiveScreen(
                             )
                         }
                         if (isTv) {
-                            IconButton(onClick = { showSearchDialog = true }) {
+                            TvIconButton(onClick = { showSearchDialog = true }) {
                                 Icon(
                                     imageVector = Icons.Rounded.Search,
                                     contentDescription = "Buscar",
@@ -247,7 +267,7 @@ fun LiveScreen(
                                 )
                             }
                         }
-                        IconButton(onClick = { showGroupsDialog = true }) {
+                        TvIconButton(onClick = { showGroupsDialog = true }) {
                             Icon(
                                 imageVector = Icons.Rounded.Tune,
                                 contentDescription = "Gestionar grupos",
@@ -319,6 +339,13 @@ fun LiveScreen(
                         },
                         onLongClick = { showOrderDialog = true }
                     )
+                }
+            } else if (!channelsLoaded) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator(color = Primary)
                 }
             } else if (channels.isEmpty() && !syncing) {
                 Box(
@@ -406,7 +433,7 @@ private fun ChannelSearchField(
         },
         trailingIcon = {
             if (query.isNotEmpty()) {
-                IconButton(onClick = { onQueryChange("") }) {
+                TvIconButton(onClick = { onQueryChange("") }) {
                     Icon(Icons.Rounded.Clear, contentDescription = "Limpiar")
                 }
             }
@@ -520,7 +547,7 @@ private fun ChannelRow(
             }
         }
         Spacer(Modifier.width(6.dp))
-        IconButton(onClick = onFavorite) {
+        TvIconButton(onClick = onFavorite) {
             Icon(
                 imageVector = if (item.favorite) Icons.Rounded.Star else Icons.Rounded.StarBorder,
                 contentDescription = if (item.favorite) "Quitar de favoritos" else "Añadir a favoritos",

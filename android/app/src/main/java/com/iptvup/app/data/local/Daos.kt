@@ -63,21 +63,63 @@ interface ChannelDao {
     @Query("SELECT COUNT(*) FROM channels WHERE profileId = :profileId")
     suspend fun count(profileId: String): Int
 
-    @Query("UPDATE channels SET epgChannelId = :epgId WHERE id = :id")
-    suspend fun updateEpgChannelId(id: String, epgId: String)
-
     @Query(
-        "SELECT DISTINCT epgChannelId FROM channels " +
-            "WHERE profileId = :profileId AND epgChannelId IS NOT NULL AND epgChannelId != ''"
+        "SELECT * FROM channels WHERE profileId = :profileId " +
+            "AND LTRIM(name) NOT LIKE '##%' " +
+            "AND groupName NOT IN (SELECT itemKey FROM hidden_items WHERE profileId = :profileId AND kind = 'group') " +
+            "AND (:group IS NULL OR groupName = :group) " +
+            "AND (:pattern IS NULL OR name LIKE :pattern ESCAPE '\\' OR groupName LIKE :pattern ESCAPE '\\') " +
+            "ORDER BY sortOrder, name COLLATE NOCASE"
     )
-    suspend fun epgChannelIds(profileId: String): List<String>
+    fun observeVisible(profileId: String, group: String?, pattern: String?): Flow<List<ChannelEntity>>
 
     @Query(
         "SELECT * FROM channels WHERE profileId = :profileId " +
-            "AND name LIKE '%' || :query || '%' COLLATE NOCASE " +
-            "ORDER BY name COLLATE NOCASE LIMIT 300"
+            "AND LTRIM(name) NOT LIKE '##%' " +
+            "AND groupName NOT IN (SELECT itemKey FROM hidden_items WHERE profileId = :profileId AND kind = 'group') " +
+            "ORDER BY sortOrder, name COLLATE NOCASE"
     )
-    suspend fun search(profileId: String, query: String): List<ChannelEntity>
+    suspend fun getVisible(profileId: String): List<ChannelEntity>
+
+    @Query(
+        "SELECT * FROM channels WHERE profileId = :profileId " +
+            "AND channelKey IN (SELECT channelKey FROM favorites WHERE profileId = :profileId) " +
+            "AND LTRIM(name) NOT LIKE '##%' " +
+            "AND groupName NOT IN (SELECT itemKey FROM hidden_items WHERE profileId = :profileId AND kind = 'group') " +
+            "ORDER BY sortOrder, name COLLATE NOCASE"
+    )
+    fun observeFavorites(profileId: String): Flow<List<ChannelEntity>>
+
+    @Query(
+        "SELECT groupName, COUNT(*) AS total FROM channels " +
+            "WHERE profileId = :profileId AND LTRIM(name) NOT LIKE '##%' GROUP BY groupName"
+    )
+    fun observeGroupCounts(profileId: String): Flow<List<GroupCount>>
+
+    @Query("SELECT COUNT(*) FROM channels WHERE profileId = :profileId")
+    fun observeCount(profileId: String): Flow<Int>
+
+    @Query(
+        "SELECT DISTINCT epgChannelId FROM channels WHERE profileId = :profileId " +
+            "AND epgChannelId IS NOT NULL AND epgChannelId != '' " +
+            "AND LTRIM(name) NOT LIKE '##%' " +
+            "AND groupName NOT IN (SELECT itemKey FROM hidden_items WHERE profileId = :profileId AND kind = 'group')"
+    )
+    suspend fun visibleEpgChannelIds(profileId: String): List<String>
+}
+
+data class GroupCount(
+    val groupName: String,
+    val total: Int
+)
+
+fun containsPattern(text: String): String? {
+    if (text.isBlank()) return null
+    val escaped = text
+        .replace("\\", "\\\\")
+        .replace("%", "\\%")
+        .replace("_", "\\_")
+    return "%$escaped%"
 }
 
 @Dao
@@ -98,10 +140,15 @@ interface EpgDao {
     suspend fun getWindow(profileId: String, from: Long, to: Long): List<EpgProgramEntity>
 
     @Query(
-        "SELECT DISTINCT epgChannelId FROM epg_programs WHERE profileId = :profileId " +
-            "AND endMs >= :from AND startMs <= :to"
+        "SELECT * FROM epg_programs WHERE profileId = :profileId " +
+            "AND epgChannelId IN (:epgIds) AND endMs >= :from AND startMs <= :to ORDER BY startMs"
     )
-    suspend fun epgIdsWithPrograms(profileId: String, from: Long, to: Long): List<String>
+    suspend fun getWindowForChannels(
+        profileId: String,
+        epgIds: List<String>,
+        from: Long,
+        to: Long
+    ): List<EpgProgramEntity>
 
     @Query(
         "SELECT * FROM epg_programs WHERE profileId = :profileId AND epgChannelId = :epgId " +

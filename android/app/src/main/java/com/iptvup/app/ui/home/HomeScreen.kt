@@ -21,7 +21,6 @@ import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.SportsSoccer
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -41,16 +40,27 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
+import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.components.FocusableCard
+import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.components.QualityBadge
+import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.theme.Accent
+import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.theme.Primary
+import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.theme.SurfaceDark
+import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.theme.TextPrimary
+import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.theme.TextSecondary
+import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.util.formatTime
+import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.data.local.RecentChannelEntity
+import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.data.model.IptvProfile
+import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.data.sports.SportsEventRaw
 
 @Composable
@@ -102,7 +112,7 @@ fun HomeScreen(
                     strokeWidth = 2.dp
                 )
             } else {
-                IconButton(onClick = viewModel::sync) {
+                TvIconButton(onClick = viewModel::sync) {
                     Icon(
                         imageVector = Icons.Rounded.Refresh,
                         contentDescription = "Actualizar canales y EPG",

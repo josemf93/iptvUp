@@ -27,7 +27,6 @@ import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -41,13 +40,21 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.components.AppBackground
+import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.components.LoadingOverlay
+import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.theme.Danger
+import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.theme.Primary
+import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.theme.SurfaceDark
+import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.theme.TextPrimary
+import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.theme.TextSecondary
+import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.data.model.ProfileKind
 
 @Composable
@@ -72,7 +79,7 @@ fun AddProfileScreen(
                     .padding(horizontal = 12.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = onBack) {
+                TvIconButton(onClick = onBack) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
                         contentDescription = "Volver",

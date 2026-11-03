@@ -27,7 +27,8 @@ data class ProfileEntity(
         Index("profileId"),
         Index("epgChannelId"),
         Index("groupName"),
-        Index("name")
+        Index("name"),
+        Index(value = ["profileId", "groupName"])
     ]
 )
 data class ChannelEntity(
@@ -49,7 +50,8 @@ data class ChannelEntity(
     indices = [
         Index("profileId"),
         Index("epgChannelId"),
-        Index("startMs")
+        Index("startMs"),
+        Index(value = ["profileId", "epgChannelId", "startMs"])
     ]
 )
 data class EpgProgramEntity(

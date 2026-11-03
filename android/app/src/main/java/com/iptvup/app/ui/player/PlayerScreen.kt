@@ -53,7 +53,6 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -88,28 +87,42 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
-import androidx.media3.datasource.DefaultHttpDataSource
-import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
+import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.cast.CastButton
+import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.cast.CastController
+import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.pip.PipState
+import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.util.isTelevision
+import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.theme.Accent
+import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.theme.Danger
+import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.theme.Primary
+import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.theme.SurfaceDark
+import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.theme.SurfaceElevated
+import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.theme.TextPrimary
+import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.theme.TextSecondary
+import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.data.identity.ChannelQuality
+import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.util.formatTime
+import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.util.progressFraction
 import kotlinx.coroutines.delay
 import kotlin.math.abs
@@ -141,6 +154,10 @@ fun PlayerScreen(
     var userPaused by remember { mutableStateOf(false) }
     var showConnecting by remember { mutableStateOf(false) }
     var connectionCountdown by remember { mutableIntStateOf(0) }
+    var autoRetries by remember { mutableIntStateOf(0) }
+    var reconnectTick by remember { mutableIntStateOf(0) }
+    var inBackground by remember { mutableStateOf(false) }
+    val lifecycleOwner = LocalLifecycleOwner.current
     val pipMode by PipState.isInPip.collectAsStateWithLifecycle()
     val focusRequester = remember { FocusRequester() }
     val surfaceFocusRequester = remember { FocusRequester() }
@@ -154,15 +171,7 @@ fun PlayerScreen(
         audioManager?.getStreamMaxVolume(AudioManager.STREAM_MUSIC) ?: 0
     }
 
-    val player = remember {
-        val dataSourceFactory = DefaultHttpDataSource.Factory()
-            .setUserAgent("IPTVUp/0.6")
-            .setAllowCrossProtocolRedirects(true)
-        val mediaSourceFactory = DefaultMediaSourceFactory(dataSourceFactory)
-        ExoPlayer.Builder(context, mediaSourceFactory).build().apply {
-            setHandleAudioBecomingNoisy(true)
-        }
-    }
+    val player = remember { viewModel.createPlayer(context) }
 
     val castController = remember(context, isTv) {
         if (isTv) {
@@ -193,10 +202,16 @@ fun PlayerScreen(
 
             override fun onPlaybackStateChanged(playbackState: Int) {
                 buffering = playbackState == Player.STATE_BUFFERING
+                if (playbackState == Player.STATE_READY) autoRetries = 0
             }
 
             override fun onPlayerError(error: PlaybackException) {
-                playerError = error.message ?: "No se pudo reproducir el canal"
+                if (autoRetries < STREAM_MAX_AUTO_RETRIES) {
+                    autoRetries++
+                    reconnectTick++
+                } else {
+                    playerError = error.message ?: "No se pudo reproducir el canal"
+                }
             }
         }
         player.addListener(listener)
@@ -206,13 +221,61 @@ fun PlayerScreen(
     LaunchedEffect(channel?.streamUrl) {
         val url = channel?.streamUrl ?: return@LaunchedEffect
         playerError = null
+        autoRetries = 0
         player.setMediaItem(MediaItem.fromUri(url))
         player.prepare()
         player.playWhenReady = true
     }
 
+    LaunchedEffect(reconnectTick) {
+        if (reconnectTick == 0) return@LaunchedEffect
+        delay(1_000L * autoRetries)
+        if (inBackground) return@LaunchedEffect
+        player.prepare()
+        player.playWhenReady = true
+    }
+
+    LaunchedEffect(buffering, channel?.id) {
+        if (!buffering || userPaused || inBackground) return@LaunchedEffect
+        delay(STALL_RECONNECT_MS)
+        if (buffering && !userPaused && !inBackground && playerError == null &&
+            autoRetries < STREAM_MAX_AUTO_RETRIES
+        ) {
+            autoRetries++
+            reconnectTick++
+        }
+    }
+
     DisposableEffect(Unit) {
         onDispose { player.release() }
+    }
+
+    DisposableEffect(lifecycleOwner, player) {
+        var resumeOnStart = false
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_STOP -> {
+                    inBackground = true
+                    resumeOnStart = true
+                    player.stop()
+                }
+
+                Lifecycle.Event.ON_START -> {
+                    if (resumeOnStart) {
+                        resumeOnStart = false
+                        inBackground = false
+                        if (player.currentMediaItem != null) {
+                            player.prepare()
+                            player.playWhenReady = !userPaused
+                        }
+                    }
+                }
+
+                else -> Unit
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
     DisposableEffect(castController, player) {
@@ -326,15 +389,15 @@ fun PlayerScreen(
         interactionTick++
     }
 
-    LaunchedEffect(channel?.id, isPlaying, userPaused, canFallback, playerError) {
-        if (isPlaying || userPaused) {
+    LaunchedEffect(channel?.id, isPlaying, userPaused, inBackground, canFallback, playerError) {
+        if (isPlaying || userPaused || inBackground) {
             showConnecting = false
             connectionCountdown = 0
             return@LaunchedEffect
         }
 
         delay(10_000L)
-        if (isPlaying || userPaused) {
+        if (isPlaying || userPaused || inBackground) {
             showConnecting = false
             connectionCountdown = 0
             return@LaunchedEffect
@@ -345,7 +408,7 @@ fun PlayerScreen(
             for (remaining in 5 downTo 1) {
                 connectionCountdown = remaining
                 delay(1_000L)
-                if (isPlaying || userPaused) {
+                if (isPlaying || userPaused || inBackground) {
                     showConnecting = false
                     connectionCountdown = 0
                     return@LaunchedEffect
@@ -358,7 +421,7 @@ fun PlayerScreen(
             }
         } else {
             delay(5_000L)
-            if (!isPlaying && !userPaused) {
+            if (!isPlaying && !userPaused && !inBackground) {
                 playerError = playerError ?: "No se pudo reproducir el canal"
             }
             showConnecting = false
@@ -550,7 +613,7 @@ fun PlayerScreen(
                         .padding(horizontal = 16.dp, vertical = 10.dp)
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onClick = onBack) {
+                        TvIconButton(onClick = onBack) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
                                 contentDescription = "Volver",
@@ -584,7 +647,7 @@ fun PlayerScreen(
                             )
                         }
                         if (!isTv && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                            IconButton(
+                            TvIconButton(
                                 onClick = {
                                     enterPip()
                                     controlsVisible = true
@@ -598,7 +661,7 @@ fun PlayerScreen(
                                 )
                             }
                         }
-                        IconButton(
+                        TvIconButton(
                             onClick = {
                                 viewModel.toggleFavorite()
                                 controlsVisible = true
@@ -653,11 +716,36 @@ fun PlayerScreen(
                 }
             }
 
-            if (buffering && playerError == null && !showConnecting) {
+            if (buffering && playerError == null && !showConnecting && autoRetries == 0) {
                 CircularProgressIndicator(
                     modifier = Modifier.align(Alignment.Center),
                     color = Color.White
                 )
+            }
+
+            if (autoRetries > 0 && playerError == null && !showConnecting &&
+                !pipMode && !inBackground
+            ) {
+                Row(
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .clip(RoundedCornerShape(50))
+                        .background(Color.Black.copy(alpha = 0.72f))
+                        .padding(horizontal = 18.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(18.dp),
+                        color = Primary,
+                        strokeWidth = 2.dp
+                    )
+                    Spacer(Modifier.width(10.dp))
+                    Text(
+                        text = "Reconectando…",
+                        color = Color.White,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
             }
 
             playerError?.let { message ->
@@ -691,6 +779,7 @@ fun PlayerScreen(
                                     userPaused = false
                                     showConnecting = false
                                     connectionCountdown = 0
+                                    autoRetries = 0
                                     player.prepare()
                                     player.playWhenReady = true
                                     controlsVisible = true
@@ -824,7 +913,7 @@ fun PlayerScreen(
                             )
                         }
                         if (!isTv) {
-                            IconButton(
+                            TvIconButton(
                                 onClick = {
                                     isFullscreen = !isFullscreen
                                     controlsVisible = true
@@ -893,7 +982,7 @@ fun PlayerScreen(
                                     style = MaterialTheme.typography.labelSmall
                                 )
                             }
-                            IconButton(onClick = { epgExpanded = false }) {
+                            TvIconButton(onClick = { epgExpanded = false }) {
                                 Icon(
                                     imageVector = Icons.Rounded.Close,
                                     contentDescription = "Cerrar guía",

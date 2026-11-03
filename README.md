@@ -17,13 +17,12 @@ Reproductor IPTV privado para **Android** y **Android TV**, con perfiles sincron
 - **Botón de actualización en Inicio y TV**: descarga todos los canales y la EPG cuando lo pulsas.
 - **Orden de grupos personalizado**: mantén pulsado un grupo o usa el icono de ordenar para subirlo/bajarlo; el orden se guarda en tu cuenta y se aplica al entrar en el perfil.
 - **Cambio automático de calidad**: si un canal no empieza a reproducirse en 15 segundos, avisa a los 10 con cuenta atrás y prueba automáticamente la siguiente variante visible del mismo canal (4K → 1080 → 720 → SD).
-- **EPG de respaldo para España** desde `epgshare01.online`, emparejando canales por nombre cuando el proveedor no tiene datos.
 - **Tarjeta de eventos deportivos** en Inicio: partidos de fútbol del día con hora, escudos, competición y acceso directo al canal visible de mejor calidad (4K → 1080/FHD → 720/HD → SD).
 - **Arranque en el último perfil usado**.
 - **Iconos de perfil personalizables**: toca el avatar de cada lista para elegir entre varios iconos.
 - En **móvil y Android TV**, la pestaña TV muestra primero los grupos como tarjetas con icono; al entrar en un grupo aparece su lista de canales con botón de volver.
 - **Sin actualización automática diaria**: al entrar en un perfil se usa siempre la caché; solo se descarga todo si no hay canales guardados o si pulsas actualizar manualmente.
-- **EPG solo de grupos visibles**: no se guardan programas de grupos ocultos, y se completa con la fuente española de epgshare cuando el proveedor no tiene datos.
+- **EPG solo de grupos visibles**: solo se descarga la EPG del proveedor para los canales de grupos visibles; no hay fuentes de respaldo.
 - Reproductor **Media3/ExoPlayer** para HLS y TS.
 - **Guía EPG** (XMLTV) con ahora/después, parrilla temporal en móvil, lista adaptada a TV, buscador de canales y el mismo gestor multi-grupo que TV.
 - Pantalla de inicio con **historial de los últimos 10 canales abiertos**.
@@ -339,7 +338,6 @@ npm run set-admin -- admin@test.com
 
 ## 7. Limitaciones actuales / siguientes pasos
 
-- La **EPG de respaldo** de epgshare cubre canales españoles emparejados por nombre; si un canal usa un nombre muy distinto al de la fuente, puede no encontrar datos.
 - Los eventos deportivos usan la API pública de ESPN: LaLiga, Copa, Supercopa y Champions/Europa con equipos españoles. Solo se enlazan canales de grupos visibles, se excluyen los que empiezan por `##` y las variantes 8K, y se prioriza 4K, 1080/FHD, 720/HD y por último SD. Si el canal elegido no arranca, el reproductor prueba automáticamente otra variante visible del mismo canal.
 - En listas **M3U** el proveedor obliga a descargar el archivo completo; se omiten los grupos ocultos al parsear y guardar, pero la descarga inicial sigue siendo el archivo entero. En **Xtream** sí se descargan solo las categorías visibles.
 - EPG en parrilla temporal también en TV (ahora TV usa la lista de grupos → canales con ahora/después).

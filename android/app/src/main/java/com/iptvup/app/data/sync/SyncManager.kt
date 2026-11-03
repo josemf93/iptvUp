@@ -9,12 +9,20 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
+
+private const val REFRESH_TICK_MS = 60_000L
 
 sealed interface SyncState {
     data object Idle : SyncState
@@ -59,12 +67,10 @@ class SyncManager @Inject constructor(
             _state.value = SyncState.Running(profileId, "Preparando...")
             try {
                 runCatching { hiddenRepository.refresh(profileId) }
-                val hiddenGroups = hiddenRepository.getHiddenGroups(profileId)
                 val credentials = profileRepository.getCredentials(profile)
                 playlistRepository.sync(
                     profile = profile,
-                    credentials = credentials,
-                    hiddenGroups = hiddenGroups
+                    credentials = credentials
                 ) { status ->
                     _state.value = SyncState.Running(profileId, status)
                 }.onSuccess {
@@ -85,6 +91,18 @@ class SyncManager @Inject constructor(
             }
         }
     }
+
+    fun refreshTicks(profileId: String): Flow<Long> = merge(
+        flow {
+            while (true) {
+                emit(System.currentTimeMillis())
+                delay(REFRESH_TICK_MS)
+            }
+        },
+        state
+            .filter { it is SyncState.Success && it.profileId == profileId }
+            .map { System.currentTimeMillis() }
+    )
 
     fun clearError(profileId: String) {
         val current = _state.value

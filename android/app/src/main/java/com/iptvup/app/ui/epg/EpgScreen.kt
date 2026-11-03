@@ -28,7 +28,6 @@ import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -50,21 +49,37 @@ import androidx.compose.ui.unit.dp
 import androidx.activity.compose.BackHandler
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.components.ChannelLogo
+import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.components.EmptyState
+import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.components.ErrorBanner
+import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.components.GroupGrid
+import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.components.NowNextText
+import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.components.QualityBadge
+import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.components.SearchDialog
+import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.theme.Accent
+import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.theme.Primary
+import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.theme.SurfaceDark
+import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.theme.SurfaceElevated
+import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.theme.TextPrimary
+import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.theme.TextSecondary
+import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.util.formatTime
+import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.util.isTelevision
+import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.util.progressFraction
 import kotlinx.coroutines.delay
 
@@ -118,7 +133,7 @@ fun EpgScreen(
                     )
                 }
                 if (television) {
-                    IconButton(onClick = { showSearchDialog = true }) {
+                    TvIconButton(onClick = { showSearchDialog = true }) {
                         Icon(
                             imageVector = Icons.Rounded.Search,
                             contentDescription = "Buscar",
@@ -140,7 +155,7 @@ fun EpgScreen(
                     },
                     trailingIcon = {
                         if (query.isNotEmpty()) {
-                            IconButton(onClick = { viewModel.setQuery("") }) {
+                            TvIconButton(onClick = { viewModel.setQuery("") }) {
                                 Icon(Icons.Rounded.Clear, contentDescription = "Limpiar")
                             }
                         }
@@ -165,7 +180,7 @@ fun EpgScreen(
             if (selectedGroup != null) {
                 Spacer(Modifier.height(8.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(
+                    TvIconButton(
                         onClick = {
                             viewModel.setQuery("")
                             viewModel.selectGroup(null)
@@ -248,7 +263,12 @@ fun EpgScreen(
                     .weight(1f)
                     .fillMaxWidth()
             ) {
-                if (ui.channels.isEmpty()) {
+                if (ui.group != selectedGroup) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.align(Alignment.Center),
+                        color = Primary
+                    )
+                } else if (ui.channels.isEmpty()) {
                     Box(
                         modifier = Modifier
                             .fillMaxSize()

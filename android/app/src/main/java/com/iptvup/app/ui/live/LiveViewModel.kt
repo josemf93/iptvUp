@@ -7,9 +7,9 @@ import com.iptvup.app.data.local.ChannelEntity
 import com.iptvup.app.data.local.ChannelDao
 import com.iptvup.app.data.local.EpgDao
 import com.iptvup.app.data.local.HiddenItemEntity
+import com.iptvup.app.data.local.containsPattern
 import com.iptvup.app.data.local.toParsedProgram
 import com.iptvup.app.data.local.dedupePrograms
-import com.iptvup.app.data.identity.ChannelQuality
 import com.iptvup.app.data.model.EpgEntry
 import com.iptvup.app.data.repository.FavoritesRepository
 import com.iptvup.app.data.repository.GroupOrderRepository
@@ -17,17 +17,22 @@ import com.iptvup.app.data.repository.HiddenRepository
 import com.iptvup.app.data.sync.SyncManager
 import com.iptvup.app.data.sync.SyncState
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 data class LiveChannelUi(
@@ -36,6 +41,14 @@ data class LiveChannelUi(
     val epg: EpgEntry
 )
 
+data class LiveChannelsUi(
+    val group: String?,
+    val items: List<LiveChannelUi>
+)
+
+private const val EPG_ID_CHUNK = 400
+
+@OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class LiveViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
@@ -88,26 +101,24 @@ class LiveViewModel @Inject constructor(
             initialValue = null
         )
 
-    private val _epg = MutableStateFlow<Map<String, EpgEntry>>(emptyMap())
-
-    val groupOrder = groupOrderRepository.observe(profileId).stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5_000),
-        initialValue = emptyList()
-    )
-
     private val _ready = MutableStateFlow(false)
     val ready: StateFlow<Boolean> = _ready.asStateFlow()
 
+    val groupOrder = groupOrderRepository.observe(profileId).stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.Eagerly,
+        initialValue = emptyList()
+    )
+
     val favorites = favoritesRepository.observe(profileId).stateIn(
         scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5_000),
+        started = SharingStarted.Eagerly,
         initialValue = emptySet()
     )
 
     val hidden: StateFlow<List<HiddenItemEntity>> = hiddenRepository.observe(profileId).stateIn(
         scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5_000),
+        started = SharingStarted.Eagerly,
         initialValue = emptyList()
     )
 
@@ -122,7 +133,7 @@ class LiveViewModel @Inject constructor(
         )
     }.stateIn(
         scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5_000),
+        started = SharingStarted.Eagerly,
         initialValue = emptyList()
     )
 
@@ -134,61 +145,55 @@ class LiveViewModel @Inject constructor(
         all.filter { it !in hiddenGroups }
     }.stateIn(
         scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5_000),
+        started = SharingStarted.Eagerly,
         initialValue = emptyList()
     )
 
-    val groupCounts = channelDao.observeAll(profileId)
-        .map { all ->
-            all.filter { !ChannelQuality.isJunkChannel(it.name) }
-                .groupBy { it.groupName }
-                .mapValues { it.value.size }
-        }
+    val groupCounts = channelDao.observeGroupCounts(profileId)
+        .map { rows -> rows.associate { it.groupName to it.total } }
         .stateIn(
             scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5_000),
+            started = SharingStarted.Eagerly,
             initialValue = emptyMap()
         )
 
-    private val filters = combine(query, selectedGroup) { text, group ->
-        text to group
+    private val groupChannels: Flow<Pair<String?, List<ChannelEntity>>> = combine(
+        _selectedGroup,
+        _query
+    ) { group, text ->
+        group to text
+    }.flatMapLatest { (group, text) ->
+        if (group == null) {
+            flowOf(null to emptyList())
+        } else {
+            channelDao.observeVisible(profileId, group, containsPattern(text))
+                .map { group to it }
+        }
     }
 
-    private val visibility = combine(favorites, hidden) { favoriteKeys, hiddenItems ->
-        favoriteKeys to hiddenItems
-    }
-
-    val channels: StateFlow<List<LiveChannelUi>> = combine(
-        channelDao.observeAll(profileId),
-        filters,
-        visibility,
-        _epg
-    ) { all, (text, group), (favoriteKeys, hiddenItems), epgMap ->
-        val hiddenGroups = hiddenItems
-            .filter { it.kind == HiddenRepository.KIND_GROUP }
-            .map { it.itemKey }
-            .toSet()
-        all.asSequence()
-            .filter { it.groupName !in hiddenGroups }
-            .filter { !ChannelQuality.isJunkChannel(it.name) }
-            .filter { group == null || it.groupName == group }
-            .filter {
-                text.isBlank() ||
-                    it.name.contains(text, ignoreCase = true) ||
-                    it.groupName.contains(text, ignoreCase = true)
-            }
-            .map {
+    val channels: StateFlow<LiveChannelsUi> = combine(
+        groupChannels,
+        favorites,
+        syncManager.refreshTicks(profileId)
+    ) { (group, list), favoriteKeys, now ->
+        Triple(group, list, Pair(favoriteKeys, now))
+    }.mapLatest { (group, list, rest) ->
+        val (favoriteKeys, now) = rest
+        val epg = epgFor(list, now)
+        LiveChannelsUi(
+            group = group,
+            items = list.map {
                 LiveChannelUi(
                     channel = it,
                     favorite = it.channelKey in favoriteKeys,
-                    epg = epgMap[it.channelKey] ?: EpgEntry()
+                    epg = it.epgChannelId?.let { id -> epg[id] } ?: EpgEntry()
                 )
             }
-            .toList()
+        )
     }.stateIn(
         scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5_000),
-        initialValue = emptyList()
+        started = SharingStarted.Eagerly,
+        initialValue = LiveChannelsUi(group = null, items = emptyList())
     )
 
     init {
@@ -198,26 +203,13 @@ class LiveViewModel @Inject constructor(
         }
         viewModelScope.launch {
             runCatching { groupOrderRepository.refresh(profileId) }
-            combine(channelDao.observeAll(profileId), hidden, groupOrder) { channels, _, _ ->
-                channels
+            combine(channelDao.observeGroups(profileId), hidden, groupOrder) { groups, _, _ ->
+                groups
             }.first()
             _ready.value = true
         }
         viewModelScope.launch {
             syncManager.syncIfEmpty(profileId)
-        }
-        viewModelScope.launch {
-            syncManager.state.collect { state ->
-                if (state is SyncState.Success && state.profileId == profileId) {
-                    refreshEpg()
-                }
-            }
-        }
-        viewModelScope.launch {
-            while (isActive) {
-                refreshEpg()
-                delay(60_000L)
-            }
         }
     }
 
@@ -271,25 +263,27 @@ class LiveViewModel @Inject constructor(
         }
     }
 
-    private suspend fun refreshEpg() {
-        val now = System.currentTimeMillis()
-        val programs = epgDao.getWindow(
-            profileId = profileId,
-            from = now - 60 * 60 * 1000L,
-            to = now + 6 * 60 * 60 * 1000L
-        )
-        val byEpgId = programs.groupBy { it.epgChannelId }
-            .mapValues { (_, list) -> list.dedupePrograms() }
-        val channelsSnapshot = channelDao.observeAll(profileId).first()
-        _epg.value = channelsSnapshot.mapNotNull { channel ->
-            val epgId = channel.epgChannelId ?: return@mapNotNull null
-            val list = byEpgId[epgId].orEmpty()
-            channel.channelKey to EpgEntry(
-                now = list.firstOrNull { it.startMs <= now && it.endMs > now }
-                    ?.toParsedProgram(),
-                next = list.firstOrNull { it.startMs > now }
-                    ?.toParsedProgram()
+    private suspend fun epgFor(channels: List<ChannelEntity>, now: Long): Map<String, EpgEntry> {
+        val epgIds = channels.mapNotNull { it.epgChannelId }.distinct()
+        if (epgIds.isEmpty()) return emptyMap()
+        val programs = epgIds.chunked(EPG_ID_CHUNK).flatMap { ids ->
+            epgDao.getWindowForChannels(
+                profileId = profileId,
+                epgIds = ids,
+                from = now - 60 * 60 * 1000L,
+                to = now + 6 * 60 * 60 * 1000L
             )
-        }.toMap()
+        }
+        return withContext(Dispatchers.Default) {
+            val byEpgId = programs.groupBy { it.epgChannelId }
+            epgIds.associateWith { epgId ->
+                val list = byEpgId[epgId].orEmpty().dedupePrograms()
+                EpgEntry(
+                    now = list.firstOrNull { it.startMs <= now && it.endMs > now }
+                        ?.toParsedProgram(),
+                    next = list.firstOrNull { it.startMs > now }?.toParsedProgram()
+                )
+            }
+        }
     }
 }

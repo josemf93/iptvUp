@@ -42,7 +42,6 @@ import androidx.compose.material.icons.rounded.SportsSoccer
 import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -61,19 +60,33 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.components.AppBackground
+import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.components.BrandLogo
+import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.components.EmptyState
+import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.components.ErrorBanner
+import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.components.FocusableCard
+import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.components.TypeBadge
+import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.theme.Danger
+import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.theme.Primary
+import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.theme.SurfaceElevated
+import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.theme.TextPrimary
+import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.theme.TextSecondary
+import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.util.formatLastSync
+import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.data.model.IptvProfile
+import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.ui.settings.GlobalSettingsDialog
 
 private data class ProfileIconOption(
@@ -137,14 +150,14 @@ fun ProfilesScreen(
             ) {
                 BrandLogo()
                 Spacer(Modifier.weight(1f))
-                IconButton(onClick = { showGlobalSettings = true }) {
+                TvIconButton(onClick = { showGlobalSettings = true }) {
                     Icon(
                         imageVector = Icons.Rounded.Settings,
                         contentDescription = "Ajustes",
                         tint = TextSecondary
                     )
                 }
-                IconButton(onClick = { confirmLogout = true }) {
+                TvIconButton(onClick = { confirmLogout = true }) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Rounded.Logout,
                         contentDescription = "Cerrar sesión",
@@ -416,14 +429,14 @@ private fun ProfileCard(
                     Spacer(Modifier.height(4.dp))
                     TypeBadge(profile.kind.wire)
                 }
-                IconButton(onClick = onEdit) {
+                TvIconButton(onClick = onEdit) {
                     Icon(
                         imageVector = Icons.Rounded.Edit,
                         contentDescription = "Editar perfil",
                         tint = TextSecondary
                     )
                 }
-                IconButton(onClick = onDelete) {
+                TvIconButton(onClick = onDelete) {
                     Icon(
                         imageVector = Icons.Rounded.Delete,
                         contentDescription = "Borrar perfil",

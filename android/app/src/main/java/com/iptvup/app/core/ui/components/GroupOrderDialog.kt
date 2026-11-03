@@ -11,7 +11,6 @@ import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.KeyboardArrowUp
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -67,7 +66,7 @@ fun GroupOrderDialog(
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f)
                         )
-                        IconButton(
+                        TvIconButton(
                             onClick = { move(index, index - 1) },
                             enabled = index > 0
                         ) {
@@ -77,7 +76,7 @@ fun GroupOrderDialog(
                                 tint = if (index > 0) TextPrimary else TextSecondary
                             )
                         }
-                        IconButton(
+                        TvIconButton(
                             onClick = { move(index, index + 1) },
                             enabled = index < ordered.lastIndex
                         ) {

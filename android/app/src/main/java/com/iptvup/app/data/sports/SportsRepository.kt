@@ -154,8 +154,8 @@ class SportsRepository @Inject constructor(
         val text = java.text.Normalizer.normalize(
             value.lowercase(Locale.ROOT),
             java.text.Normalizer.Form.NFD
-        ).replace(Regex("\\p{M}+"), "")
-        return text.replace(Regex("[^a-z0-9]+"), " ").trim()
+        ).replace(DIACRITICS, "")
+        return text.replace(NON_ALPHANUMERIC, " ").trim()
     }
 
     private fun parseEspnDate(value: String): Long? {
@@ -176,6 +176,8 @@ class SportsRepository @Inject constructor(
 
     private companion object {
         const val CACHE_MS = 15 * 60 * 1000L
+        val DIACRITICS = Regex("\\p{M}+")
+        val NON_ALPHANUMERIC = Regex("[^a-z0-9]+")
 
         val SOURCES = listOf(
             SportsSource("soccer/esp.1", "Fútbol", "LaLiga", spanishOnly = false),

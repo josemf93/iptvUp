@@ -44,8 +44,7 @@ class SettingsViewModel @Inject constructor(
     var error by mutableStateOf<String?>(null)
         private set
 
-    val channelCount = channelDao.observeAll(profileId)
-        .map { it.size }
+    val channelCount = channelDao.observeCount(profileId)
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),

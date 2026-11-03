@@ -10,8 +10,6 @@ import com.iptvup.app.data.model.IptvProfile
 import com.iptvup.app.data.model.ProfileCredentials
 import com.iptvup.app.data.model.ProfileKind
 import com.iptvup.app.data.parser.M3uParser
-import com.iptvup.app.data.parser.EpgFallback
-import com.iptvup.app.data.parser.XmltvFallbackParser
 import com.iptvup.app.data.parser.XmltvParser
 import com.iptvup.app.data.remote.XtreamClient
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -19,7 +17,6 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.flow.first
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.BufferedInputStream
@@ -38,7 +35,6 @@ class PlaylistRepository @Inject constructor(
     private val profileDao: ProfileDao,
     private val m3uParser: M3uParser,
     private val xmltvParser: XmltvParser,
-    private val xmltvFallbackParser: XmltvFallbackParser,
     private val xtreamClient: XtreamClient,
     private val okHttp: OkHttpClient
 ) {
@@ -46,7 +42,6 @@ class PlaylistRepository @Inject constructor(
     suspend fun sync(
         profile: IptvProfile,
         credentials: ProfileCredentials,
-        hiddenGroups: Set<String> = emptySet(),
         onStatus: (String) -> Unit = {}
     ): Result<Unit> = withContext(Dispatchers.IO) {
         try {
@@ -71,7 +66,7 @@ class PlaylistRepository @Inject constructor(
                 }
                 epgDao.deleteByProfile(profile.id)
                 try {
-                    syncEpg(profile, epgUrl, hiddenGroups, onStatus)
+                    syncEpg(profile, epgUrl, onStatus)
                 } catch (exception: CancellationException) {
                     throw exception
                 } catch (exception: Exception) {
@@ -80,14 +75,6 @@ class PlaylistRepository @Inject constructor(
             } else {
                 epgDao.deleteByProfile(profile.id)
                 onStatus("Sin URL de EPG del proveedor")
-            }
-
-            try {
-                syncFallbackEpg(profile, hiddenGroups, onStatus)
-            } catch (exception: CancellationException) {
-                throw exception
-            } catch (exception: Exception) {
-                onStatus("EPG de respaldo no disponible: ${exception.message ?: "error"}")
             }
 
             profileDao.updateLastSynced(profile.id, System.currentTimeMillis())
@@ -165,17 +152,9 @@ class PlaylistRepository @Inject constructor(
     private suspend fun syncEpg(
         profile: IptvProfile,
         epgUrl: String,
-        hiddenGroups: Set<String>,
         onStatus: (String) -> Unit
     ) {
-        val epgIds = channelDao.observeAll(profile.id).first()
-            .asSequence()
-            .filter { it.groupName !in hiddenGroups }
-            .filter { !ChannelQuality.isJunkChannel(it.name) }
-            .mapNotNull { channel ->
-                channel.epgChannelId?.takeIf { it.isNotBlank() }
-            }
-            .toSet()
+        val epgIds = channelDao.visibleEpgChannelIds(profile.id).toSet()
         if (epgIds.isEmpty()) {
             onStatus("Los canales visibles no tienen id de EPG")
             return
@@ -203,74 +182,6 @@ class PlaylistRepository @Inject constructor(
             if (batch.isNotEmpty()) epgDao.upsertAll(batch)
             epgDao.deleteBefore(profile.id, now - 24 * 60 * 60 * 1000L)
             onStatus("EPG: $count programas")
-        } finally {
-            file.delete()
-        }
-    }
-
-    private suspend fun syncFallbackEpg(
-        profile: IptvProfile,
-        hiddenGroups: Set<String>,
-        onStatus: (String) -> Unit
-    ) {
-        val now = System.currentTimeMillis()
-        val from = now - 6 * 60 * 60 * 1000L
-        val to = now + 7 * 24 * 60 * 60 * 1000L
-        val covered = epgDao.epgIdsWithPrograms(profile.id, from, to).toSet()
-        val channels = channelDao.observeAll(profile.id).first()
-            .filter { it.groupName !in hiddenGroups }
-            .filter { !ChannelQuality.isJunkChannel(it.name) }
-
-        val targets = LinkedHashMap<String, MutableList<String>>()
-        val idTargets = LinkedHashMap<String, MutableList<String>>()
-        val syntheticChannels = LinkedHashMap<String, String>()
-        channels.forEach { channel ->
-            val normalized = EpgFallback.normalize(channel.name)
-            if (normalized.isBlank()) return@forEach
-            val providerId = channel.epgChannelId?.takeIf { it.isNotBlank() }
-            val epgId = providerId ?: EpgFallback.syntheticId(channel.name)
-            if (epgId in covered) return@forEach
-            if (providerId != null) {
-                idTargets.getOrPut(providerId) { mutableListOf() }
-                    .apply { if (providerId !in this) add(providerId) }
-            } else {
-                syntheticChannels[channel.id] = epgId
-            }
-            targets.getOrPut(normalized) { mutableListOf() }
-                .apply { if (epgId !in this) add(epgId) }
-        }
-        if (targets.isEmpty()) return
-
-        onStatus("Descargando EPG de respaldo (España)...")
-        val file = downloadToCache(EpgFallback.URL, "epg_es_${profile.id}_")
-        val matched = HashSet<String>()
-        val inserted = HashSet<String>()
-        try {
-            if (file.length() == 0L) error("La EPG de respaldo está vacía")
-            var count = 0
-            val batch = ArrayList<com.iptvup.app.data.local.EpgProgramEntity>(500)
-            maybeGzip(file.inputStream()).use { input ->
-                xmltvFallbackParser.parse(input, from, to, targets, idTargets) { program ->
-                    val key = "${program.epgChannelId}|${program.startMs}"
-                    if (inserted.add(key)) {
-                        matched += program.epgChannelId
-                        batch += program.toEntity(profile.id)
-                        count++
-                        if (batch.size >= 500) {
-                            runBlocking { epgDao.upsertAll(batch) }
-                            batch.clear()
-                            onStatus("EPG respaldo: $count programas")
-                        }
-                    }
-                }
-            }
-            if (batch.isNotEmpty()) epgDao.upsertAll(batch)
-            syntheticChannels.forEach { (channelId, epgId) ->
-                if (epgId in matched) {
-                    channelDao.updateEpgChannelId(channelId, epgId)
-                }
-            }
-            onStatus("EPG de respaldo: $count programas")
         } finally {
             file.delete()
         }

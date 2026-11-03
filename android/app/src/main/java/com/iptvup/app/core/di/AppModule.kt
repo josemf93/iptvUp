@@ -9,6 +9,7 @@ import com.iptvup.app.data.local.ChannelDao
 import com.iptvup.app.data.local.EpgDao
 import com.iptvup.app.data.local.FavoriteDao
 import com.iptvup.app.data.local.HiddenDao
+import com.iptvup.app.data.local.MIGRATION_2_3
 import com.iptvup.app.data.local.ProfileDao
 import com.iptvup.app.data.local.RecentDao
 import dagger.Module
@@ -52,6 +53,7 @@ object AppModule {
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): AppDatabase =
         Room.databaseBuilder(context, AppDatabase::class.java, "iptvup.db")
+            .addMigrations(MIGRATION_2_3)
             .fallbackToDestructiveMigration()
             .build()
 

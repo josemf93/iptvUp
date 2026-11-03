@@ -1,10 +1,15 @@
 package com.iptvup.app.ui.main
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.Home
@@ -22,15 +27,18 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.iptvup.app.core.ui.components.BrandLogo
 import com.iptvup.app.core.ui.theme.Background
+import com.iptvup.app.core.ui.theme.Primary
 import com.iptvup.app.core.ui.theme.SurfaceDark
 import com.iptvup.app.core.ui.util.isTelevision
 import com.iptvup.app.ui.epg.EpgScreen
@@ -97,12 +105,24 @@ fun MainScreen(
                 }
             ) {
                 MainTab.entries.forEach { item ->
+                    val interactionSource = remember { MutableInteractionSource() }
+                    val focused by interactionSource.collectIsFocusedAsState()
+                    val focusShape = RoundedCornerShape(16.dp)
                     NavigationRailItem(
                         selected = tab == item,
                         onClick = { tabName = item.name },
                         icon = { Icon(item.icon, contentDescription = item.label) },
                         label = { Text(item.label) },
-                        alwaysShowLabel = true
+                        alwaysShowLabel = true,
+                        interactionSource = interactionSource,
+                        modifier = if (focused) {
+                            Modifier
+                                .clip(focusShape)
+                                .background(Primary.copy(alpha = 0.2f))
+                                .border(3.dp, Primary, focusShape)
+                        } else {
+                            Modifier
+                        }
                     )
                 }
             }
