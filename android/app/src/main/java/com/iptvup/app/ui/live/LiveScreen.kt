@@ -26,9 +26,11 @@ import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material.icons.rounded.StarBorder
 import androidx.compose.material.icons.rounded.SwapVert
-import androidx.compose.material.icons.rounded.Tune
+import androidx.compose.material.icons.rounded.Visibility
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -94,6 +96,10 @@ fun LiveScreen(
     onPlay: (String) -> Unit,
     viewModel: LiveViewModel = hiltViewModel()
 ) {
+    if (isTelevision()) {
+        LiveTvLayout(onPlay = onPlay, viewModel = viewModel)
+        return
+    }
     val channelsState by viewModel.channels.collectAsStateWithLifecycle()
     val groups by viewModel.groups.collectAsStateWithLifecycle()
     val allGroups by viewModel.allGroups.collectAsStateWithLifecycle()
@@ -111,6 +117,7 @@ fun LiveScreen(
     var showGroupsDialog by remember { mutableStateOf(false) }
     var showSearchDialog by remember { mutableStateOf(false) }
     var showOrderDialog by remember { mutableStateOf(false) }
+    var confirmRefresh by remember { mutableStateOf(false) }
     val isTv = isTelevision()
 
     val hiddenGroups = remember(hidden) {
@@ -145,17 +152,6 @@ fun LiveScreen(
                             style = MaterialTheme.typography.headlineSmall,
                             fontWeight = FontWeight.Bold
                         )
-                        Text(
-                            text = if (!ready) {
-                                "Cargando..."
-                            } else if (showingGroupBrowser) {
-                                "${groups.size} grupos · ${channels.size} canales"
-                            } else {
-                                "${channels.size} canales visibles"
-                            },
-                            color = TextSecondary,
-                            style = MaterialTheme.typography.bodySmall
-                        )
                     }
                     if (syncing) {
                         CircularProgressIndicator(
@@ -172,7 +168,7 @@ fun LiveScreen(
                             overflow = TextOverflow.Ellipsis
                         )
                     } else {
-                        TvIconButton(onClick = viewModel::sync) {
+                        TvIconButton(onClick = { confirmRefresh = true }) {
                             Icon(
                                 imageVector = Icons.Rounded.Refresh,
                                 contentDescription = "Actualizar lista",
@@ -225,7 +221,7 @@ fun LiveScreen(
                         }
                         TvIconButton(onClick = { showGroupsDialog = true }) {
                             Icon(
-                                imageVector = Icons.Rounded.Tune,
+                                imageVector = Icons.Rounded.Visibility,
                                 contentDescription = "Gestionar grupos",
                                 tint = TextSecondary
                             )
@@ -269,7 +265,7 @@ fun LiveScreen(
                         }
                         TvIconButton(onClick = { showGroupsDialog = true }) {
                             Icon(
-                                imageVector = Icons.Rounded.Tune,
+                                imageVector = Icons.Rounded.Visibility,
                                 contentDescription = "Gestionar grupos",
                                 tint = TextSecondary
                             )
@@ -409,9 +405,32 @@ fun LiveScreen(
         )
     }
 
+    if (confirmRefresh) {
+        AlertDialog(
+            onDismissRequest = { confirmRefresh = false },
+            title = { Text("Actualizar lista") },
+            text = { Text("¿Desea actualizar la lista de canales?") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        confirmRefresh = false
+                        viewModel.sync()
+                    }
+                ) {
+                    Text("Sí")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmRefresh = false }) {
+                    Text("No")
+                }
+            }
+        )
+    }
+
     if (showOrderDialog) {
         GroupOrderDialog(
-            groups = groups,
+            groups = allGroups,
             onSave = viewModel::saveGroupOrder,
             onDismiss = { showOrderDialog = false }
         )
@@ -427,6 +446,7 @@ private fun ChannelSearchField(
         value = query,
         onValueChange = onQueryChange,
         modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(28.dp),
         placeholder = { Text("Buscar canal o grupo") },
         leadingIcon = {
             Icon(Icons.Rounded.Search, contentDescription = null)

@@ -22,8 +22,10 @@ import androidx.compose.material.icons.rounded.Logout
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.SwapHoriz
+import androidx.compose.foundation.clickable
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -68,6 +70,7 @@ fun SettingsScreen(
 ) {
     val channelCount by viewModel.channelCount.collectAsStateWithLifecycle()
     val updateState by viewModel.updateState.collectAsStateWithLifecycle()
+    val syncOnOpen by viewModel.syncOnOpen.collectAsStateWithLifecycle()
     var confirmLogout by remember { mutableStateOf(false) }
 
     Column(
@@ -147,6 +150,37 @@ fun SettingsScreen(
                 Icon(Icons.Rounded.Logout, contentDescription = null, tint = Danger)
                 Spacer(Modifier.width(8.dp))
                 Text("Cerrar sesión", color = Danger)
+            }
+        }
+
+        Spacer(Modifier.height(16.dp))
+        SectionTitle("Lista de canales")
+        SettingsCard {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { viewModel.setSyncOnOpen(!syncOnOpen) },
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Checkbox(
+                    checked = syncOnOpen,
+                    onCheckedChange = null
+                )
+                Spacer(Modifier.width(8.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Actualizar al entrar en el perfil",
+                        color = TextPrimary,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        text = "Descarga la lista de canales cada vez que abres el perfil. " +
+                            "Si está desactivado, actualiza con el botón de refresco de TV en directo.",
+                        color = TextSecondary,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
             }
         }
 

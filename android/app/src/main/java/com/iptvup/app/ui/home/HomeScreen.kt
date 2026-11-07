@@ -6,28 +6,37 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.SportsSoccer
+import androidx.compose.material.icons.rounded.Tv
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -40,28 +49,20 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
-import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.components.FocusableCard
-import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.components.QualityBadge
 import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.theme.Accent
-import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.theme.Primary
-import com.iptvup.app.core.ui.components.TvIconButton
-import com.iptvup.app.core.ui.theme.SurfaceDark
-import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.theme.TextPrimary
-import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.theme.TextSecondary
-import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.util.formatTime
-import com.iptvup.app.core.ui.components.TvIconButton
+import com.iptvup.app.core.ui.util.isTelevision
 import com.iptvup.app.data.local.RecentChannelEntity
-import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.data.model.IptvProfile
-import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.data.sports.SportsEventRaw
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @Composable
 fun HomeScreen(
@@ -69,17 +70,16 @@ fun HomeScreen(
     onPlay: (String) -> Unit,
     viewModel: HomeViewModel = hiltViewModel()
 ) {
-    val channelCount by viewModel.channelCount.collectAsStateWithLifecycle()
-    val favoriteCount by viewModel.favoriteCount.collectAsStateWithLifecycle()
     val recent by viewModel.recent.collectAsStateWithLifecycle()
     val sportsEvents by viewModel.sportsEvents.collectAsStateWithLifecycle()
     val sportsLoading by viewModel.sportsLoading.collectAsStateWithLifecycle()
     val syncing by viewModel.syncing.collectAsStateWithLifecycle()
+    var confirmRefresh by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         while (true) {
             viewModel.loadSports()
-            kotlinx.coroutines.delay(15 * 60 * 1000L)
+            delay(15 * 60 * 1000L)
         }
     }
 
@@ -112,7 +112,7 @@ fun HomeScreen(
                     strokeWidth = 2.dp
                 )
             } else {
-                TvIconButton(onClick = viewModel::sync) {
+                TvIconButton(onClick = { confirmRefresh = true }) {
                     Icon(
                         imageVector = Icons.Rounded.Refresh,
                         contentDescription = "Actualizar canales y EPG",
@@ -125,23 +125,8 @@ fun HomeScreen(
         Spacer(Modifier.height(12.dp))
         SportsCard(
             events = sportsEvents,
-            loading = sportsLoading,
-            onPlay = onPlay
+            loading = sportsLoading
         )
-
-        Spacer(Modifier.height(18.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            StatCard(
-                value = channelCount.toString(),
-                label = "Canales",
-                modifier = Modifier.weight(1f)
-            )
-            StatCard(
-                value = favoriteCount.toString(),
-                label = "Favoritos",
-                modifier = Modifier.weight(1f)
-            )
-        }
 
         if (recent.isNotEmpty()) {
             Spacer(Modifier.height(20.dp))
@@ -164,14 +149,37 @@ fun HomeScreen(
 
         Spacer(Modifier.height(24.dp))
     }
+
+    if (confirmRefresh) {
+        AlertDialog(
+            onDismissRequest = { confirmRefresh = false },
+            title = { Text("Actualizar lista") },
+            text = { Text("¿Desea actualizar la lista de canales?") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        confirmRefresh = false
+                        viewModel.sync()
+                    }
+                ) {
+                    Text("Sí")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmRefresh = false }) {
+                    Text("No")
+                }
+            }
+        )
+    }
 }
 
 @Composable
 private fun SportsCard(
-    events: List<SportsEventUi>,
-    loading: Boolean,
-    onPlay: (String) -> Unit
+    events: List<SportsEventRaw>,
+    loading: Boolean
 ) {
+    val isTv = isTelevision()
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -211,7 +219,7 @@ private fun SportsCard(
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        text = "Fútbol · hoy",
+                        text = "Hoy · fútbol, baloncesto y tenis",
                         color = Color.White.copy(alpha = 0.7f),
                         style = MaterialTheme.typography.labelSmall
                     )
@@ -220,7 +228,7 @@ private fun SportsCard(
             Spacer(Modifier.height(14.dp))
 
             when {
-                loading -> Row(verticalAlignment = Alignment.CenterVertically) {
+                loading && events.isEmpty() -> Row(verticalAlignment = Alignment.CenterVertically) {
                     CircularProgressIndicator(
                         modifier = Modifier.size(20.dp),
                         color = Color.White,
@@ -235,102 +243,138 @@ private fun SportsCard(
                 }
 
                 events.isEmpty() -> Text(
-                    text = "No hay partidos de fútbol para hoy.",
+                    text = "No hay eventos para hoy.",
                     color = Color.White.copy(alpha = 0.75f),
                     style = MaterialTheme.typography.bodySmall
                 )
 
-                else -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    events.forEach { event ->
-                        SportsEventRow(event = event, onPlay = onPlay)
-                    }
-                }
+                else -> SportsCarousel(events = events, isTv = isTv)
             }
         }
     }
 }
 
 @Composable
-private fun SportsEventRow(
-    event: SportsEventUi,
-    onPlay: (String) -> Unit
+private fun SportsCarousel(
+    events: List<SportsEventRaw>,
+    isTv: Boolean
 ) {
-    val channel = event.channel
-    FocusableCard(
-        onClick = { channel?.id?.let(onPlay) },
-        modifier = Modifier.fillMaxWidth()
-    ) {
+    val pagerState = rememberPagerState(pageCount = { events.size })
+    val scope = rememberCoroutineScope()
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (isTv) {
+                TvIconButton(
+                    onClick = {
+                        if (pagerState.currentPage > 0) {
+                            scope.launch { pagerState.animateScrollToPage(pagerState.currentPage - 1) }
+                        }
+                    }
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowLeft,
+                        contentDescription = "Evento anterior",
+                        tint = Color.White
+                    )
+                }
+            }
+            HorizontalPager(
+                state = pagerState,
+                modifier = Modifier.weight(1f)
+            ) { page ->
+                SportsEventPage(event = events[page])
+            }
+            if (isTv) {
+                TvIconButton(
+                    onClick = {
+                        if (pagerState.currentPage < events.size - 1) {
+                            scope.launch { pagerState.animateScrollToPage(pagerState.currentPage + 1) }
+                        }
+                    }
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                        contentDescription = "Evento siguiente",
+                        tint = Color.White
+                    )
+                }
+            }
+        }
+        Spacer(Modifier.height(10.dp))
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.Center
         ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = formatTime(event.event.startMs),
-                        color = Accent,
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = " · ${event.event.competition}",
-                        color = TextSecondary,
-                        style = MaterialTheme.typography.labelSmall,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    if (event.event.status == "in") {
-                        Spacer(Modifier.width(6.dp))
-                        Text(
-                            text = "EN DIRECTO",
-                            color = Accent,
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold
+            events.indices.forEach { index ->
+                Box(
+                    modifier = Modifier
+                        .padding(horizontal = 3.dp)
+                        .size(if (index == pagerState.currentPage) 8.dp else 6.dp)
+                        .clip(CircleShape)
+                        .background(
+                            Color.White.copy(
+                                alpha = if (index == pagerState.currentPage) 0.9f else 0.35f
+                            )
                         )
-                    }
-                }
-                Spacer(Modifier.height(6.dp))
-                TeamLine(
-                    name = event.event.homeTeam,
-                    logo = event.event.homeLogo
                 )
-                Spacer(Modifier.height(3.dp))
-                TeamLine(
-                    name = event.event.awayTeam,
-                    logo = event.event.awayLogo
+            }
+        }
+    }
+}
+
+@Composable
+private fun SportsEventPage(event: SportsEventRaw) {
+    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 6.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = formatTime(event.startMs),
+                color = Accent,
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = " · ${event.sport} · ${event.competition}",
+                color = Color.White.copy(alpha = 0.7f),
+                style = MaterialTheme.typography.labelSmall,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false)
+            )
+            if (event.status == "in") {
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    text = "EN DIRECTO",
+                    color = Accent,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold
                 )
-                Spacer(Modifier.height(6.dp))
-                if (channel != null) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = channel.name,
-                            color = Primary,
-                            style = MaterialTheme.typography.labelSmall,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f, fill = false)
-                        )
-                        Spacer(Modifier.width(6.dp))
-                        QualityBadge(channel.name)
-                    }
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        TeamLine(name = event.homeTeam, logo = event.homeLogo)
+        Spacer(Modifier.height(4.dp))
+        TeamLine(name = event.awayTeam, logo = event.awayLogo)
+        Spacer(Modifier.height(10.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = Icons.Rounded.Tv,
+                contentDescription = null,
+                tint = Primary,
+                modifier = Modifier.size(16.dp)
+            )
+            Spacer(Modifier.width(6.dp))
+            Text(
+                text = if (event.broadcasters.isEmpty()) {
+                    "Canal no indicado"
                 } else {
-                    Text(
-                        text = "Canal no disponible en tu lista",
-                        color = TextSecondary,
-                        style = MaterialTheme.typography.labelSmall
-                    )
-                }
-            }
-            if (channel != null) {
-                Icon(
-                    imageVector = Icons.Rounded.PlayArrow,
-                    contentDescription = "Ver partido",
-                    tint = Primary,
-                    modifier = Modifier.size(26.dp)
-                )
-            }
+                    event.broadcasters.joinToString(" · ")
+                },
+                color = Primary,
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
         }
     }
 }
@@ -422,31 +466,5 @@ private fun RecentChannelRow(
                 modifier = Modifier.size(24.dp)
             )
         }
-    }
-}
-
-@Composable
-private fun StatCard(
-    value: String,
-    label: String,
-    modifier: Modifier = Modifier
-) {
-    Column(
-        modifier = modifier
-            .clip(RoundedCornerShape(16.dp))
-            .background(SurfaceDark)
-            .padding(16.dp)
-    ) {
-        Text(
-            text = value,
-            color = TextPrimary,
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Bold
-        )
-        Text(
-            text = label,
-            color = TextSecondary,
-            style = MaterialTheme.typography.bodySmall
-        )
     }
 }

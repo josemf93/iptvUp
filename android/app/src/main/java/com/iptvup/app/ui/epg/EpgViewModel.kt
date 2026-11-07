@@ -186,10 +186,10 @@ class EpgViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            runCatching { hiddenRepository.refresh(profileId) }
+            hiddenRepository.listen(profileId)
         }
         viewModelScope.launch {
-            runCatching { groupOrderRepository.refresh(profileId) }
+            groupOrderRepository.listen(profileId)
             combine(channelDao.observeGroups(profileId), hidden, groupOrder) { groups, _, _ ->
                 groups
             }.first()

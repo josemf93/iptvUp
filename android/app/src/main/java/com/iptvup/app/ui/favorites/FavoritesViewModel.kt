@@ -32,8 +32,8 @@ class FavoritesViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            runCatching { favoritesRepository.refresh(profileId) }
-            runCatching { hiddenRepository.refresh(profileId) }
+            favoritesRepository.listen(profileId)
+            hiddenRepository.listen(profileId)
         }
     }
 

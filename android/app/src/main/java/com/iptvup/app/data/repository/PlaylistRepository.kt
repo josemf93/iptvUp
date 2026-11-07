@@ -9,6 +9,7 @@ import com.iptvup.app.data.identity.ChannelQuality
 import com.iptvup.app.data.model.IptvProfile
 import com.iptvup.app.data.model.ProfileCredentials
 import com.iptvup.app.data.model.ProfileKind
+import com.iptvup.app.data.epg.SpanishEpgMatcher
 import com.iptvup.app.data.parser.M3uParser
 import com.iptvup.app.data.parser.XmltvParser
 import com.iptvup.app.data.remote.XtreamClient
@@ -26,6 +27,8 @@ import java.io.InputStream
 import java.util.zip.GZIPInputStream
 import javax.inject.Inject
 import javax.inject.Singleton
+
+private const val FALLBACK_PREFIX = "es:"
 
 @Singleton
 class PlaylistRepository @Inject constructor(
@@ -75,6 +78,14 @@ class PlaylistRepository @Inject constructor(
             } else {
                 epgDao.deleteByProfile(profile.id)
                 onStatus("Sin URL de EPG del proveedor")
+            }
+
+            try {
+                syncSpanishFallbackEpg(profile, onStatus)
+            } catch (exception: CancellationException) {
+                throw exception
+            } catch (exception: Exception) {
+                onStatus("EPG española no disponible: ${exception.message ?: "error"}")
             }
 
             profileDao.updateLastSynced(profile.id, System.currentTimeMillis())
@@ -182,6 +193,53 @@ class PlaylistRepository @Inject constructor(
             if (batch.isNotEmpty()) epgDao.upsertAll(batch)
             epgDao.deleteBefore(profile.id, now - 24 * 60 * 60 * 1000L)
             onStatus("EPG: $count programas")
+        } finally {
+            file.delete()
+        }
+    }
+
+    private suspend fun syncSpanishFallbackEpg(
+        profile: IptvProfile,
+        onStatus: (String) -> Unit
+    ) {
+        val now = System.currentTimeMillis()
+        val from = now - 6 * 60 * 60 * 1000L
+        val to = now + 7 * 24 * 60 * 60 * 1000L
+        val covered = epgDao.epgIdsWithPrograms(profile.id, from, to).toSet()
+        val candidates = channelDao.getVisible(profile.id).filter { channel ->
+            channel.epgChannelId.isNullOrBlank() || channel.epgChannelId !in covered
+        }
+        if (candidates.isEmpty()) return
+
+        onStatus("Buscando EPG española de respaldo...")
+        val file = downloadToCache(SpanishEpgMatcher.URL, "epg_es_${profile.id}_")
+        try {
+            if (file.length() == 0L) error("La EPG española está vacía")
+            val index = maybeGzip(file.inputStream()).use { SpanishEpgMatcher.readIndex(it) }
+            val matches = candidates.mapNotNull { channel ->
+                SpanishEpgMatcher.match(channel.name, index)?.let { channel to it }
+            }
+            if (matches.isEmpty()) return
+
+            val wantedIds = matches.map { it.second }.toSet()
+            var count = 0
+            val batch = ArrayList<com.iptvup.app.data.local.EpgProgramEntity>(500)
+            maybeGzip(file.inputStream()).use { input ->
+                xmltvParser.parse(input, from, to, wantedIds) { program ->
+                    val prefixed = program.copy(epgChannelId = FALLBACK_PREFIX + program.epgChannelId)
+                    batch += prefixed.toEntity(profile.id)
+                    count++
+                    if (batch.size >= 500) {
+                        runBlocking { epgDao.upsertAll(batch) }
+                        batch.clear()
+                    }
+                }
+            }
+            if (batch.isNotEmpty()) epgDao.upsertAll(batch)
+            matches.forEach { (channel, epgId) ->
+                channelDao.updateEpgChannelId(channel.id, FALLBACK_PREFIX + epgId)
+            }
+            onStatus("EPG española: ${matches.size} canales emparejados")
         } finally {
             file.delete()
         }

@@ -66,7 +66,7 @@ class SyncManager @Inject constructor(
 
             _state.value = SyncState.Running(profileId, "Preparando...")
             try {
-                runCatching { hiddenRepository.refresh(profileId) }
+                hiddenRepository.listen(profileId)
                 val credentials = profileRepository.getCredentials(profile)
                 playlistRepository.sync(
                     profile = profile,

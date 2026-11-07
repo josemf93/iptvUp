@@ -7,6 +7,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.firebase.auth.FirebaseAuth
+import com.iptvup.app.core.settings.SettingsStore
 import com.iptvup.app.data.local.ChannelDao
 import com.iptvup.app.data.model.IptvProfile
 import com.iptvup.app.data.repository.AuthRepository
@@ -29,11 +30,22 @@ class SettingsViewModel @Inject constructor(
     private val syncManager: SyncManager,
     private val channelDao: ChannelDao,
     private val updateManager: UpdateManager,
+    private val settingsStore: SettingsStore,
     auth: FirebaseAuth
 ) : ViewModel() {
 
     val profileId: String = checkNotNull(savedStateHandle["profileId"])
     val email: String? = auth.currentUser?.email
+
+    val syncOnOpen = settingsStore.syncOnOpen.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = false
+    )
+
+    fun setSyncOnOpen(enabled: Boolean) {
+        viewModelScope.launch { settingsStore.setSyncOnOpen(enabled) }
+    }
 
     var profile by mutableStateOf<IptvProfile?>(null)
         private set

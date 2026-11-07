@@ -149,6 +149,7 @@ fun EpgScreen(
                     value = query,
                     onValueChange = viewModel::setQuery,
                     modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(28.dp),
                     placeholder = { Text("Buscar canal o grupo") },
                     leadingIcon = {
                         Icon(Icons.Rounded.Search, contentDescription = null)

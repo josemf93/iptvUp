@@ -9,6 +9,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import org.json.JSONArray
 import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -26,14 +27,16 @@ data class SportsEventRaw(
     val homeLogo: String?,
     val awayLogo: String?,
     val startMs: Long,
-    val status: String
+    val status: String,
+    val broadcasters: List<String>
 )
 
 private data class SportsSource(
     val path: String,
     val sport: String,
     val competition: String,
-    val spanishOnly: Boolean
+    val spanishOnly: Boolean = false,
+    val individual: Boolean = false
 )
 
 @Singleton
@@ -86,64 +89,137 @@ class SportsRepository @Inject constructor(
             val body = response.body?.string().orEmpty()
             if (body.isBlank()) return emptyList()
             val root = JSONObject(body)
-            val array = root.optJSONArray("events") ?: return emptyList()
+            val events = root.optJSONArray("events") ?: return emptyList()
             val result = ArrayList<SportsEventRaw>()
-            for (index in 0 until array.length()) {
-                val event = array.optJSONObject(index) ?: continue
-                val competition = event.optJSONArray("competitions")?.optJSONObject(0)
-                    ?: continue
-                val competitors = competition.optJSONArray("competitors") ?: continue
-                var homeName: String? = null
-                var awayName: String? = null
-                var homeLogo: String? = null
-                var awayLogo: String? = null
-                for (c in 0 until competitors.length()) {
-                    val competitor = competitors.optJSONObject(c) ?: continue
-                    val side = competitor.optString("homeAway")
-                    val team = competitor.optJSONObject("team") ?: continue
-                    val name = team.optString("displayName")
-                        .ifBlank { team.optString("shortDisplayName") }
-                    if (name.isBlank()) continue
-                    val logo = team.optString("logo").takeIf { it.isNotBlank() }
-                        ?: team.optJSONArray("logos")?.optJSONObject(0)
-                            ?.optString("href")?.takeIf { it.isNotBlank() }
-                    if (side == "home") {
-                        homeName = name
-                        homeLogo = logo
-                    } else if (side == "away") {
-                        awayName = name
-                        awayLogo = logo
-                    }
+            for (index in 0 until events.length()) {
+                val event = events.optJSONObject(index) ?: continue
+                val competitions = competitionsOf(event)
+                for (competition in competitions) {
+                    parseCompetition(event, competition, source)?.let { result += it }
                 }
-                val home = homeName ?: continue
-                val away = awayName ?: continue
-                if (source.spanishOnly && !isSpanishEvent(home, away)) continue
-
-                val start = parseEspnDate(
-                    event.optString("date").ifBlank { competition.optString("date") }
-                ) ?: continue
-                val state = competition.optJSONObject("status")
-                    ?.optJSONObject("type")
-                    ?.optString("state")
-                    .orEmpty()
-                if (state == "post") continue
-                val id = event.optString("id")
-                    .ifBlank { "$home-$away-$start" }
-                result += SportsEventRaw(
-                    id = id,
-                    sport = source.sport,
-                    competition = source.competition,
-                    homeTeam = home,
-                    awayTeam = away,
-                    homeLogo = homeLogo,
-                    awayLogo = awayLogo,
-                    startMs = start,
-                    status = state
-                )
             }
             return result
         }
     }
+
+    private fun competitionsOf(event: JSONObject): List<JSONObject> {
+        event.optJSONArray("competitions")?.let { return it.objects() }
+        val groupings = event.optJSONArray("groupings") ?: return emptyList()
+        return groupings.objects().flatMap { grouping ->
+            grouping.optJSONArray("competitions")?.objects().orEmpty()
+        }
+    }
+
+    private fun parseCompetition(
+        event: JSONObject,
+        competition: JSONObject,
+        source: SportsSource
+    ): SportsEventRaw? {
+        val state = competition.optJSONObject("status")
+            ?.optJSONObject("type")
+            ?.optString("state")
+            .orEmpty()
+        if (state == "post") return null
+
+        val start = parseEspnDate(
+            competition.optString("date").ifBlank { event.optString("date") }
+        ) ?: return null
+
+        val sides = if (source.individual) {
+            individualSides(competition)
+        } else {
+            teamSides(competition)
+        } ?: return null
+        val (home, homeLogo, away, awayLogo) = sides
+
+        if (source.spanishOnly && !isSpanishEvent(home, away)) return null
+
+        val id = competition.optString("id")
+            .ifBlank { event.optString("id") }
+            .ifBlank { "$home-$away-$start" }
+        val competitionName = if (source.individual) {
+            event.optString("name").ifBlank { source.competition }
+        } else {
+            source.competition
+        }
+        return SportsEventRaw(
+            id = "${source.path}:$id",
+            sport = source.sport,
+            competition = competitionName,
+            homeTeam = home,
+            awayTeam = away,
+            homeLogo = homeLogo,
+            awayLogo = awayLogo,
+            startMs = start,
+            status = state,
+            broadcasters = broadcastersOf(competition)
+        )
+    }
+
+    private data class Sides(
+        val home: String,
+        val homeLogo: String?,
+        val away: String,
+        val awayLogo: String?
+    )
+
+    private fun teamSides(competition: JSONObject): Sides? {
+        val competitors = competition.optJSONArray("competitors") ?: return null
+        var home: Pair<String, String?>? = null
+        var away: Pair<String, String?>? = null
+        for (competitor in competitors.objects()) {
+            val team = competitor.optJSONObject("team") ?: continue
+            val name = team.optString("displayName")
+                .ifBlank { team.optString("shortDisplayName") }
+            if (name.isBlank()) continue
+            val logo = team.optString("logo").takeIf { it.isNotBlank() }
+                ?: team.optJSONArray("logos")?.optJSONObject(0)
+                    ?.optString("href")?.takeIf { it.isNotBlank() }
+            when (competitor.optString("homeAway")) {
+                "home" -> home = name to logo
+                "away" -> away = name to logo
+            }
+        }
+        val h = home ?: return null
+        val a = away ?: return null
+        return Sides(h.first, h.second, a.first, a.second)
+    }
+
+    private fun individualSides(competition: JSONObject): Sides? {
+        val competitors = competition.optJSONArray("competitors") ?: return null
+        val players = competitors.objects()
+            .sortedBy { it.optInt("order", 0) }
+            .mapNotNull { competitor ->
+                val athlete = competitor.optJSONObject("athlete") ?: return@mapNotNull null
+                val name = athlete.optString("displayName")
+                    .ifBlank { athlete.optString("shortName") }
+                if (name.isBlank()) return@mapNotNull null
+                name to athlete.optJSONObject("flag")?.optString("href")?.takeIf { it.isNotBlank() }
+            }
+        if (players.size < 2) return null
+        return Sides(players[0].first, players[0].second, players[1].first, players[1].second)
+    }
+
+    private fun broadcastersOf(competition: JSONObject): List<String> {
+        val names = LinkedHashSet<String>()
+        competition.optJSONArray("broadcasts")?.objects()?.forEach { broadcast ->
+            broadcast.optJSONArray("names")?.let { array ->
+                for (index in 0 until array.length()) {
+                    array.optString(index).takeIf { it.isNotBlank() }?.let(names::add)
+                }
+            }
+        }
+        if (names.isEmpty()) {
+            competition.optJSONArray("geoBroadcasts")?.objects()?.forEach { geo ->
+                geo.optJSONObject("media")?.optString("shortName")
+                    ?.takeIf { it.isNotBlank() }?.let(names::add)
+            }
+        }
+        return names.toList()
+    }
+
+    private fun JSONArray.objects(): List<JSONObject> =
+        (0 until length()).mapNotNull { optJSONObject(it) }
 
     private fun isSpanishEvent(home: String, away: String): Boolean {
         val normalized = "${normalize(home)} ${normalize(away)}"
@@ -180,12 +256,15 @@ class SportsRepository @Inject constructor(
         val NON_ALPHANUMERIC = Regex("[^a-z0-9]+")
 
         val SOURCES = listOf(
-            SportsSource("soccer/esp.1", "Fútbol", "LaLiga", spanishOnly = false),
-            SportsSource("soccer/esp.copa_del_rey", "Fútbol", "Copa del Rey", spanishOnly = false),
-            SportsSource("soccer/esp.supercopa", "Fútbol", "Supercopa", spanishOnly = false),
+            SportsSource("soccer/esp.1", "Fútbol", "LaLiga"),
+            SportsSource("soccer/esp.copa_del_rey", "Fútbol", "Copa del Rey"),
+            SportsSource("soccer/esp.supercopa", "Fútbol", "Supercopa"),
             SportsSource("soccer/uefa.champions", "Fútbol", "Champions League", spanishOnly = true),
             SportsSource("soccer/uefa.europa", "Fútbol", "Europa League", spanishOnly = true),
-            SportsSource("soccer/uefa.europa.conf", "Fútbol", "Conference League", spanishOnly = true)
+            SportsSource("soccer/uefa.europa.conf", "Fútbol", "Conference League", spanishOnly = true),
+            SportsSource("basketball/nba", "Baloncesto", "NBA"),
+            SportsSource("tennis/atp", "Tenis", "ATP", individual = true),
+            SportsSource("tennis/wta", "Tenis", "WTA", individual = true)
         )
 
         val SPANISH_TOKENS = setOf(

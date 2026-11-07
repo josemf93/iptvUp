@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -345,21 +346,23 @@ fun TvIconButton(
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val focused by interactionSource.collectIsFocusedAsState()
-    IconButton(
-        onClick = onClick,
-        modifier = modifier.then(
-            if (focused) {
-                Modifier
-                    .background(Primary.copy(alpha = 0.22f), CircleShape)
-                    .border(2.dp, Primary, CircleShape)
-            } else {
-                Modifier
-            }
-        ),
-        enabled = enabled,
-        interactionSource = interactionSource,
-        content = content
-    )
+    Box(
+        modifier = modifier
+            .size(48.dp)
+            .clip(CircleShape)
+            .then(
+                if (focused) Modifier.border(2.dp, Primary, CircleShape) else Modifier
+            )
+            .clickable(
+                interactionSource = interactionSource,
+                indication = LocalIndication.current,
+                enabled = enabled,
+                onClick = onClick
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        content()
+    }
 }
 
 @Composable

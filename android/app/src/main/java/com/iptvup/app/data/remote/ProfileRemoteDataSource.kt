@@ -5,6 +5,9 @@ import com.google.firebase.firestore.SetOptions
 import com.iptvup.app.data.local.HiddenItemEntity
 import com.iptvup.app.data.model.IptvProfile
 import com.iptvup.app.data.model.ProfileKind
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.tasks.await
 import java.security.MessageDigest
 import javax.inject.Inject
@@ -77,19 +80,57 @@ class ProfileRemoteDataSource @Inject constructor(
             .await()
     }
 
+    fun observeFavorites(uid: String, profileId: String): Flow<List<String>> = callbackFlow {
+        val registration = favoritesRef(uid, profileId).addSnapshotListener { snapshot, error ->
+            if (snapshot != null && error == null) {
+                trySend(snapshot.documents.map { it.id })
+            }
+        }
+        awaitClose { registration.remove() }
+    }
+
+    fun observeHidden(uid: String, profileId: String): Flow<List<HiddenItemEntity>> = callbackFlow {
+        val registration = hiddenRef(uid, profileId).addSnapshotListener { snapshot, error ->
+            if (snapshot != null && error == null) {
+                trySend(snapshot.documents.mapNotNull { hiddenFrom(profileId, it) })
+            }
+        }
+        awaitClose { registration.remove() }
+    }
+
+    fun observeGroupOrder(uid: String, profileId: String): Flow<List<String>> = callbackFlow {
+        val registration = profileRef(uid, profileId).addSnapshotListener { snapshot, error ->
+            if (snapshot != null && error == null) {
+                trySend(groupOrderFrom(snapshot.get("groupOrder")))
+            }
+        }
+        awaitClose { registration.remove() }
+    }
+
+    private fun hiddenFrom(
+        profileId: String,
+        document: com.google.firebase.firestore.DocumentSnapshot
+    ): HiddenItemEntity? {
+        val itemKey = document.getString("itemKey") ?: return null
+        val kind = document.getString("kind") ?: return null
+        return HiddenItemEntity(
+            id = "$profileId:$kind:$itemKey",
+            profileId = profileId,
+            kind = kind,
+            itemKey = itemKey,
+            createdAt = document.getLong("createdAt") ?: 0L
+        )
+    }
+
+    private fun groupOrderFrom(raw: Any?): List<String> =
+        (raw as? List<*>)
+            ?.mapNotNull { it as? String }
+            ?.filter { it.isNotBlank() }
+            .orEmpty()
+
     suspend fun getHidden(uid: String, profileId: String): List<HiddenItemEntity> {
         val snapshot = hiddenRef(uid, profileId).get().await()
-        return snapshot.documents.mapNotNull { document ->
-            val itemKey = document.getString("itemKey") ?: return@mapNotNull null
-            val kind = document.getString("kind") ?: return@mapNotNull null
-            HiddenItemEntity(
-                id = "$profileId:$kind:$itemKey",
-                profileId = profileId,
-                kind = kind,
-                itemKey = itemKey,
-                createdAt = document.getLong("createdAt") ?: 0L
-            )
-        }
+        return snapshot.documents.mapNotNull { hiddenFrom(profileId, it) }
     }
 
     suspend fun addHidden(uid: String, profileId: String, kind: String, itemKey: String) {

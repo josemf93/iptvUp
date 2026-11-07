@@ -99,6 +99,9 @@ interface ChannelDao {
     @Query("SELECT COUNT(*) FROM channels WHERE profileId = :profileId")
     fun observeCount(profileId: String): Flow<Int>
 
+    @Query("UPDATE channels SET epgChannelId = :epgId WHERE id = :id")
+    suspend fun updateEpgChannelId(id: String, epgId: String)
+
     @Query(
         "SELECT DISTINCT epgChannelId FROM channels WHERE profileId = :profileId " +
             "AND epgChannelId IS NOT NULL AND epgChannelId != '' " +
@@ -138,6 +141,12 @@ interface EpgDao {
             "AND endMs >= :from AND startMs <= :to ORDER BY startMs"
     )
     suspend fun getWindow(profileId: String, from: Long, to: Long): List<EpgProgramEntity>
+
+    @Query(
+        "SELECT DISTINCT epgChannelId FROM epg_programs WHERE profileId = :profileId " +
+            "AND endMs >= :from AND startMs <= :to"
+    )
+    suspend fun epgIdsWithPrograms(profileId: String, from: Long, to: Long): List<String>
 
     @Query(
         "SELECT * FROM epg_programs WHERE profileId = :profileId " +
@@ -213,6 +222,15 @@ interface FavoriteDao {
 
     @Query("DELETE FROM favorites WHERE profileId = :profileId")
     suspend fun deleteByProfile(profileId: String)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(items: List<FavoriteEntity>)
+
+    @Transaction
+    suspend fun replaceForProfile(profileId: String, items: List<FavoriteEntity>) {
+        deleteByProfile(profileId)
+        if (items.isNotEmpty()) insertAll(items)
+    }
 }
 
 @Dao

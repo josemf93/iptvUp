@@ -1,6 +1,7 @@
 package com.iptvup.app.core.settings
 
 import android.content.Context
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
@@ -42,6 +43,16 @@ class SettingsStore @Inject constructor(
                 null
             }
         }.toMap()
+    }
+
+    val syncOnOpen: Flow<Boolean> = context.settingsDataStore.data.map { preferences ->
+        preferences[SYNC_ON_OPEN] ?: false
+    }
+
+    suspend fun setSyncOnOpen(enabled: Boolean) {
+        context.settingsDataStore.edit { preferences ->
+            preferences[SYNC_ON_OPEN] = enabled
+        }
     }
 
     fun groupOrder(profileId: String): Flow<List<String>> =
@@ -112,5 +123,6 @@ class SettingsStore @Inject constructor(
         val ACTIVE_PROFILE_ID = stringPreferencesKey("active_profile_id")
         val SKIPPED_VERSION_CODE = intPreferencesKey("skipped_version_code")
         val LAST_UPDATE_CHECK = longPreferencesKey("last_update_check_ms")
+        val SYNC_ON_OPEN = booleanPreferencesKey("sync_on_open")
     }
 }

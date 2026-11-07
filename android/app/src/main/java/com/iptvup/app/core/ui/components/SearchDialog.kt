@@ -1,6 +1,7 @@
 package com.iptvup.app.core.ui.components
 
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -23,6 +24,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.unit.dp
 import com.iptvup.app.core.ui.theme.Primary
 import com.iptvup.app.core.ui.theme.SurfaceDark
 import com.iptvup.app.core.ui.theme.TextPrimary
@@ -59,6 +61,7 @@ fun SearchDialog(
                 modifier = Modifier
                     .fillMaxWidth()
                     .focusRequester(focusRequester),
+                shape = RoundedCornerShape(28.dp),
                 placeholder = { Text("Canal o grupo") },
                 trailingIcon = {
                     if (value.isNotEmpty()) {

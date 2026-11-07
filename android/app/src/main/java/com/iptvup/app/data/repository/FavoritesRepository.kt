@@ -4,8 +4,13 @@ import com.google.firebase.auth.FirebaseAuth
 import com.iptvup.app.data.local.FavoriteDao
 import com.iptvup.app.data.local.FavoriteEntity
 import com.iptvup.app.data.remote.ProfileRemoteDataSource
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -16,23 +21,34 @@ class FavoritesRepository @Inject constructor(
     private val auth: FirebaseAuth
 ) {
 
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private var listening: Job? = null
+    private var listeningProfile: String? = null
+
     fun observe(profileId: String): Flow<Set<String>> =
         dao.observeKeys(profileId).map { it.toSet() }
 
-    suspend fun refresh(profileId: String) {
+    /** Mantiene los favoritos locales sincronizados con la nube mientras dure la sesión. */
+    fun listen(profileId: String) {
+        if (listeningProfile == profileId && listening?.isActive == true) return
+        listening?.cancel()
+        listeningProfile = profileId
         val uid = auth.currentUser?.uid ?: return
-        val keys = remote.getFavorites(uid, profileId)
-        dao.deleteByProfile(profileId)
-        val now = System.currentTimeMillis()
-        keys.forEach { key ->
-            dao.insert(
-                FavoriteEntity(
-                    id = "$profileId:$key",
-                    profileId = profileId,
-                    channelKey = key,
-                    createdAt = now
+        listening = scope.launch {
+            remote.observeFavorites(uid, profileId).collect { keys ->
+                val now = System.currentTimeMillis()
+                dao.replaceForProfile(
+                    profileId,
+                    keys.map { key ->
+                        FavoriteEntity(
+                            id = "$profileId:$key",
+                            profileId = profileId,
+                            channelKey = key,
+                            createdAt = now
+                        )
+                    }
                 )
-            )
+            }
         }
     }
 

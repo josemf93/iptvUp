@@ -1,5 +1,6 @@
 package com.iptvup.app.core.ui.components
 
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -16,7 +17,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.Switch
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -71,6 +72,7 @@ fun GroupVisibilityDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(top = 10.dp),
+                    shape = RoundedCornerShape(28.dp),
                     placeholder = { Text("Buscar grupo...") },
                     leadingIcon = {
                         Icon(Icons.Rounded.Search, contentDescription = null)
@@ -131,7 +133,7 @@ fun GroupVisibilityDialog(
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
-                        Switch(
+                        Checkbox(
                             checked = group !in hiddenGroups,
                             onCheckedChange = { onToggle(group) }
                         )

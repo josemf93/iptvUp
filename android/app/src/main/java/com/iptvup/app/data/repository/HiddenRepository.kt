@@ -4,7 +4,12 @@ import com.google.firebase.auth.FirebaseAuth
 import com.iptvup.app.data.local.HiddenDao
 import com.iptvup.app.data.local.HiddenItemEntity
 import com.iptvup.app.data.remote.ProfileRemoteDataSource
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -15,14 +20,28 @@ class HiddenRepository @Inject constructor(
     private val auth: FirebaseAuth
 ) {
 
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private var listening: Job? = null
+    private var listeningProfile: String? = null
+
     fun observe(profileId: String): Flow<List<HiddenItemEntity>> =
         dao.observeAll(profileId)
 
-    suspend fun refresh(profileId: String) {
+    /** Mantiene los grupos ocultos locales sincronizados con la nube mientras dure la sesión. */
+    fun listen(profileId: String) {
+        if (listeningProfile == profileId && listening?.isActive == true) return
+        listening?.cancel()
+        listeningProfile = profileId
         val uid = auth.currentUser?.uid ?: return
-        val items = remote.getHidden(uid, profileId).filter { it.kind == KIND_GROUP }
-        dao.deleteByProfile(profileId)
-        items.forEach { item -> dao.insert(item) }
+        listening = scope.launch {
+            remote.observeHidden(uid, profileId).collect { items ->
+                dao.replaceKind(
+                    profileId,
+                    KIND_GROUP,
+                    items.filter { it.kind == KIND_GROUP }
+                )
+            }
+        }
     }
 
     suspend fun getHiddenGroups(profileId: String): Set<String> =

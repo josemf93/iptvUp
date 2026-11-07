@@ -22,7 +22,7 @@ Reproductor IPTV privado para **Android** y **Android TV**, con perfiles sincron
 - **Iconos de perfil personalizables**: toca el avatar de cada lista para elegir entre varios iconos.
 - En **móvil y Android TV**, la pestaña TV muestra primero los grupos como tarjetas con icono; al entrar en un grupo aparece su lista de canales con botón de volver.
 - **Sin actualización automática diaria**: al entrar en un perfil se usa siempre la caché; solo se descarga todo si no hay canales guardados o si pulsas actualizar manualmente.
-- **EPG solo de grupos visibles**: solo se descarga la EPG del proveedor para los canales de grupos visibles; no hay fuentes de respaldo.
+- **EPG solo de grupos visibles**: solo se descarga la EPG para los canales de grupos visibles. Si el proveedor no trae datos de un canal español, se empareja por nombre con la guía española de epgshare01.online (por ejemplo "ES MOVISTAR ACCION" con "Acción por M+").
 - Reproductor **Media3/ExoPlayer** para HLS y TS.
 - **Guía EPG** (XMLTV) con ahora/después, parrilla temporal en móvil, lista adaptada a TV, buscador de canales y el mismo gestor multi-grupo que TV.
 - Pantalla de inicio con **historial de los últimos 10 canales abiertos**.

@@ -1,11 +1,15 @@
 package com.iptvup.app.ui.live
 
+import android.content.Context
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.media3.exoplayer.ExoPlayer
+import com.iptvup.app.core.settings.SettingsStore
 import com.iptvup.app.data.local.ChannelEntity
 import com.iptvup.app.data.local.ChannelDao
 import com.iptvup.app.data.local.EpgDao
+import com.iptvup.app.data.local.EpgProgramEntity
 import com.iptvup.app.data.local.HiddenItemEntity
 import com.iptvup.app.data.local.containsPattern
 import com.iptvup.app.data.local.toParsedProgram
@@ -16,6 +20,7 @@ import com.iptvup.app.data.repository.GroupOrderRepository
 import com.iptvup.app.data.repository.HiddenRepository
 import com.iptvup.app.data.sync.SyncManager
 import com.iptvup.app.data.sync.SyncState
+import com.iptvup.app.ui.player.buildStreamPlayer
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -33,6 +38,7 @@ import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import okhttp3.OkHttpClient
 import javax.inject.Inject
 
 data class LiveChannelUi(
@@ -57,7 +63,8 @@ class LiveViewModel @Inject constructor(
     private val favoritesRepository: FavoritesRepository,
     private val hiddenRepository: HiddenRepository,
     private val groupOrderRepository: GroupOrderRepository,
-    private val syncManager: SyncManager
+    private val syncManager: SyncManager,
+    private val okHttp: OkHttpClient
 ) : ViewModel() {
 
     val profileId: String = checkNotNull(savedStateHandle["profileId"])
@@ -67,6 +74,11 @@ class LiveViewModel @Inject constructor(
 
     private val _selectedGroup = MutableStateFlow<String?>(null)
     val selectedGroup: StateFlow<String?> = _selectedGroup.asStateFlow()
+
+    private val _focusedChannel = MutableStateFlow<ChannelEntity?>(null)
+    val focusedChannel: StateFlow<ChannelEntity?> = _focusedChannel.asStateFlow()
+
+    private val _orderDraft = MutableStateFlow<List<String>?>(null)
 
     val syncing: StateFlow<Boolean> = syncManager.state
         .map { it is SyncState.Running && it.profileId == profileId }
@@ -122,15 +134,23 @@ class LiveViewModel @Inject constructor(
         initialValue = emptyList()
     )
 
-    val allGroups = combine(channelDao.observeGroups(profileId), hidden, groupOrder) {
-            stored, hiddenItems, order ->
-        val hiddenKeys = hiddenItems
-            .filter { it.kind == HiddenRepository.KIND_GROUP }
-            .map { it.itemKey }
-        groupOrderRepository.sortGroups(
-            (stored + hiddenKeys).distinct(),
-            order
-        )
+    val allGroups = combine(
+        channelDao.observeGroups(profileId),
+        hidden,
+        groupOrder,
+        _orderDraft
+    ) { stored, hiddenItems, order, draft ->
+        if (draft != null) {
+            draft
+        } else {
+            val hiddenKeys = hiddenItems
+                .filter { it.kind == HiddenRepository.KIND_GROUP }
+                .map { it.itemKey }
+            groupOrderRepository.sortGroups(
+                (stored + hiddenKeys).distinct(),
+                order
+            )
+        }
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.Eagerly,
@@ -196,14 +216,35 @@ class LiveViewModel @Inject constructor(
         initialValue = LiveChannelsUi(group = null, items = emptyList())
     )
 
+    val focusedPrograms: StateFlow<List<EpgProgramEntity>> = combine(
+        _focusedChannel,
+        syncManager.refreshTicks(profileId)
+    ) { channel, now ->
+        channel to now
+    }.mapLatest { (channel, now) ->
+        val epgId = channel?.epgChannelId ?: return@mapLatest emptyList()
+        epgDao.getForChannel(
+            profileId = profileId,
+            epgId = epgId,
+            from = now - 60 * 60 * 1000L,
+            to = now + 12 * 60 * 60 * 1000L
+        ).dedupePrograms()
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.Eagerly,
+        initialValue = emptyList()
+    )
+
     init {
+        favoritesRepository.listen(profileId)
+        hiddenRepository.listen(profileId)
+        groupOrderRepository.listen(profileId)
         viewModelScope.launch {
-            runCatching { favoritesRepository.refresh(profileId) }
-            runCatching { hiddenRepository.refresh(profileId) }
-        }
-        viewModelScope.launch {
-            runCatching { groupOrderRepository.refresh(profileId) }
-            combine(channelDao.observeGroups(profileId), hidden, groupOrder) { groups, _, _ ->
+            combine(
+                channelDao.observeGroups(profileId),
+                hiddenRepository.observe(profileId),
+                groupOrderRepository.observe(profileId)
+            ) { groups, _, _ ->
                 groups
             }.first()
             _ready.value = true
@@ -213,12 +254,19 @@ class LiveViewModel @Inject constructor(
         }
     }
 
+    fun createPreviewPlayer(context: Context): ExoPlayer =
+        buildStreamPlayer(context, okHttp).apply { volume = 0f }
+
     fun setQuery(value: String) {
         _query.value = value
     }
 
     fun selectGroup(group: String?) {
         _selectedGroup.value = group
+    }
+
+    fun focusChannel(channel: ChannelEntity?) {
+        _focusedChannel.value = channel
     }
 
     fun toggleFavorite(channel: ChannelEntity) {
@@ -260,6 +308,43 @@ class LiveViewModel @Inject constructor(
     fun saveGroupOrder(groups: List<String>) {
         viewModelScope.launch {
             groupOrderRepository.save(profileId, groups)
+        }
+    }
+
+    /** Empieza a reordenar: copia el orden actual a un borrador que se guarda al terminar. */
+    fun beginGroupMove() {
+        if (_orderDraft.value == null) {
+            _orderDraft.value = allGroups.value
+        }
+    }
+
+    /** Mueve un grupo hacia el siguiente grupo visible en la dirección indicada (-1 o 1). */
+    fun moveGroup(group: String, direction: Int) {
+        val base = _orderDraft.value ?: allGroups.value
+        val hiddenKeys = hidden.value
+            .filter { it.kind == HiddenRepository.KIND_GROUP }
+            .map { it.itemKey }
+            .toSet()
+        val from = base.indexOf(group)
+        if (from < 0) return
+        var to = from + direction
+        while (to in base.indices && base[to] in hiddenKeys) {
+            to += direction
+        }
+        if (to !in base.indices) return
+        _orderDraft.value = base.toMutableList().also { list ->
+            val item = list[from]
+            list[from] = list[to]
+            list[to] = item
+        }
+    }
+
+    /** Termina de reordenar y guarda el orden en la cuenta. */
+    fun endGroupMove() {
+        val draft = _orderDraft.value ?: return
+        viewModelScope.launch {
+            groupOrderRepository.save(profileId, draft)
+            _orderDraft.value = null
         }
     }
 
