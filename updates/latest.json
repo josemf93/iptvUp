@@ -1,8 +1,8 @@
 {
-  "versionCode": 14,
-  "versionName": "0.8.4",
-  "apkUrl": "https://github.com/josemf93/iptvUp/releases/download/v0.8.4/IPTVUp-v0.8.4.apk",
-  "sha256": "c4862b5e533a3a63abcb5a4d6cf04863a0beed1ee8c635c5a26c936cb0fb1fa5",
+  "versionCode": 15,
+  "versionName": "0.9.0",
+  "apkUrl": "https://github.com/josemf93/iptvUp/releases/download/v0.9.0/IPTVUp-v0.9.0.apk",
+  "sha256": "e760df3d3616f53699c1fb5b470320b13cf614fa209d7bf7ab2f3513209b520e",
   "minSupportedVersionCode": 1,
-  "notes": "Foco visible en TV, carga más rápida de TV en directo y guía, EPG solo del proveedor, reproductor con reconexión automática y aviso de reconexión, logos más ligeros y sin parpadeo de 'Sin resultados' al elegir grupo."
+  "notes": "TV: nuevo diseño con grupos, canales, vista previa y EPG; reordenar grupos manteniendo OK. Móvil: reordenar grupos arrastrando. Favoritos, ocultos y orden sincronizados en tiempo real con la cuenta. Sincronización opcional al entrar en el perfil. Deportes: fútbol, baloncesto y tenis con el canal de la API. EPG española de respaldo por nombre."
 }
