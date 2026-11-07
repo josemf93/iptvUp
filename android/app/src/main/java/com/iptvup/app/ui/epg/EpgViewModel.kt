@@ -234,6 +234,10 @@ class EpgViewModel @Inject constructor(
         syncManager.sync(profileId)
     }
 
+    fun refreshEpg() {
+        syncManager.refreshEpg(profileId)
+    }
+
     fun dismissError() {
         syncManager.clearError(profileId)
     }

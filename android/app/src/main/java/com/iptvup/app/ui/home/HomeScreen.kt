@@ -23,8 +23,17 @@ import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material.icons.rounded.SportsBasketball
 import androidx.compose.material.icons.rounded.SportsSoccer
+import androidx.compose.material.icons.rounded.SportsTennis
 import androidx.compose.material.icons.rounded.Tv
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
+import androidx.compose.foundation.border
+import androidx.compose.runtime.key
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.foundation.clickable
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -226,6 +235,10 @@ private fun SportsCard(
                 }
             }
             Spacer(Modifier.height(14.dp))
+            var selectedSport by rememberSaveable { mutableStateOf(SPORT_TAGS.first().sport) }
+            SportTags(selected = selectedSport, onSelect = { selectedSport = it })
+            Spacer(Modifier.height(14.dp))
+            val sportEvents = events.filter { it.sport == selectedSport }
 
             when {
                 loading && events.isEmpty() -> Row(verticalAlignment = Alignment.CenterVertically) {
@@ -242,15 +255,81 @@ private fun SportsCard(
                     )
                 }
 
-                events.isEmpty() -> Text(
-                    text = "No hay eventos para hoy.",
+                sportEvents.isEmpty() -> Text(
+                    text = "No hay partidos de ${selectedSport.lowercase()} para hoy.",
                     color = Color.White.copy(alpha = 0.75f),
                     style = MaterialTheme.typography.bodySmall
                 )
 
-                else -> SportsCarousel(events = events, isTv = isTv)
+                else -> key(selectedSport) {
+                    SportsCarousel(events = sportEvents, isTv = isTv)
+                }
             }
         }
+    }
+}
+
+private data class SportTag(val sport: String, val icon: ImageVector)
+
+private val SPORT_TAGS = listOf(
+    SportTag("Fútbol", Icons.Rounded.SportsSoccer),
+    SportTag("Tenis", Icons.Rounded.SportsTennis),
+    SportTag("Baloncesto", Icons.Rounded.SportsBasketball)
+)
+
+@Composable
+private fun SportTags(
+    selected: String,
+    onSelect: (String) -> Unit
+) {
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        SPORT_TAGS.forEach { tag ->
+            SportTagChip(
+                label = tag.sport,
+                icon = tag.icon,
+                selected = tag.sport == selected,
+                onClick = { onSelect(tag.sport) }
+            )
+        }
+    }
+}
+
+@Composable
+private fun SportTagChip(
+    label: String,
+    icon: ImageVector,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val focused by interactionSource.collectIsFocusedAsState()
+    val shape = RoundedCornerShape(50)
+    Row(
+        modifier = Modifier
+            .clip(shape)
+            .background(if (selected) Color.White.copy(alpha = 0.22f) else Color.White.copy(alpha = 0.08f))
+            .then(if (focused) Modifier.border(2.dp, Primary, shape) else Modifier)
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick
+            )
+            .padding(horizontal = 12.dp, vertical = 7.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = Color.White,
+            modifier = Modifier.size(16.dp)
+        )
+        Spacer(Modifier.width(6.dp))
+        Text(
+            text = label,
+            color = Color.White,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
+        )
     }
 }
 

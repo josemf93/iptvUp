@@ -62,6 +62,7 @@ import com.iptvup.app.core.ui.theme.SurfaceDark
 import com.iptvup.app.core.ui.theme.SurfaceElevated
 import com.iptvup.app.core.ui.theme.TextPrimary
 import com.iptvup.app.core.ui.theme.TextSecondary
+import com.iptvup.app.core.ui.util.isTelevision
 import com.iptvup.app.data.identity.ChannelQuality
 
 @Composable
@@ -355,7 +356,7 @@ fun TvIconButton(
             )
             .clickable(
                 interactionSource = interactionSource,
-                indication = LocalIndication.current,
+                indication = if (isTelevision()) null else LocalIndication.current,
                 enabled = enabled,
                 onClick = onClick
             ),

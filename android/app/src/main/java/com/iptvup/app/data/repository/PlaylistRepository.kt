@@ -1,15 +1,18 @@
 package com.iptvup.app.data.repository
 
 import android.content.Context
+import com.iptvup.app.core.settings.SettingsStore
 import com.iptvup.app.data.local.ChannelDao
+import com.iptvup.app.data.local.ChannelEntity
 import com.iptvup.app.data.local.EpgDao
+import com.iptvup.app.data.local.EpgProgramEntity
 import com.iptvup.app.data.local.ProfileDao
 import com.iptvup.app.data.local.toEntity
 import com.iptvup.app.data.identity.ChannelQuality
+import com.iptvup.app.data.epg.SpanishEpgMatcher
 import com.iptvup.app.data.model.IptvProfile
 import com.iptvup.app.data.model.ProfileCredentials
 import com.iptvup.app.data.model.ProfileKind
-import com.iptvup.app.data.epg.SpanishEpgMatcher
 import com.iptvup.app.data.parser.M3uParser
 import com.iptvup.app.data.parser.XmltvParser
 import com.iptvup.app.data.remote.XtreamClient
@@ -39,12 +42,18 @@ class PlaylistRepository @Inject constructor(
     private val m3uParser: M3uParser,
     private val xmltvParser: XmltvParser,
     private val xtreamClient: XtreamClient,
-    private val okHttp: OkHttpClient
+    private val okHttp: OkHttpClient,
+    private val settings: SettingsStore
 ) {
 
+    /**
+     * Actualiza canales. La EPG solo se descarga si [epgDue] es true
+     * (una vez al día o si nunca se ha descargado).
+     */
     suspend fun sync(
         profile: IptvProfile,
         credentials: ProfileCredentials,
+        epgDue: Boolean,
         onStatus: (String) -> Unit = {}
     ): Result<Unit> = withContext(Dispatchers.IO) {
         try {
@@ -53,41 +62,11 @@ class PlaylistRepository @Inject constructor(
                 ProfileKind.M3U -> syncM3u(profile, credentials, onStatus)
                 ProfileKind.XTREAM -> syncXtream(profile, credentials, onStatus)
             }
-
-            val epgUrl = profile.epgUrl?.takeIf { it.isNotBlank() }
-                ?: credentials.epgUrl?.takeIf { it.isNotBlank() }
-                ?: discoveredEpg?.takeIf { it.isNotBlank() }
-                ?: if (profile.kind == ProfileKind.XTREAM) {
-                    xtreamClient.epgUrl(credentials)
-                } else {
-                    null
-                }
-
-            if (epgUrl != null) {
-                if (!discoveredEpg.isNullOrBlank()) {
-                    profileDao.updateEpgUrl(profile.id, discoveredEpg)
-                }
-                epgDao.deleteByProfile(profile.id)
-                try {
-                    syncEpg(profile, epgUrl, onStatus)
-                } catch (exception: CancellationException) {
-                    throw exception
-                } catch (exception: Exception) {
-                    onStatus("EPG no disponible: ${exception.message ?: "error"}")
-                }
+            if (epgDue) {
+                syncEpgFor(profile, credentials, discoveredEpg, onStatus)
             } else {
-                epgDao.deleteByProfile(profile.id)
-                onStatus("Sin URL de EPG del proveedor")
+                onStatus("EPG al día")
             }
-
-            try {
-                syncSpanishFallbackEpg(profile, onStatus)
-            } catch (exception: CancellationException) {
-                throw exception
-            } catch (exception: Exception) {
-                onStatus("EPG española no disponible: ${exception.message ?: "error"}")
-            }
-
             profileDao.updateLastSynced(profile.id, System.currentTimeMillis())
             onStatus("Listo")
             Result.success(Unit)
@@ -95,6 +74,70 @@ class PlaylistRepository @Inject constructor(
             throw exception
         } catch (exception: Exception) {
             Result.failure(exception)
+        }
+    }
+
+    /** Descarga solo la EPG, sin tocar los canales. */
+    suspend fun refreshEpg(
+        profile: IptvProfile,
+        credentials: ProfileCredentials,
+        onStatus: (String) -> Unit = {}
+    ): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            syncEpgFor(profile, credentials, null, onStatus)
+            onStatus("EPG actualizada")
+            Result.success(Unit)
+        } catch (exception: CancellationException) {
+            throw exception
+        } catch (exception: Exception) {
+            Result.failure(exception)
+        }
+    }
+
+    private suspend fun syncEpgFor(
+        profile: IptvProfile,
+        credentials: ProfileCredentials,
+        discoveredEpg: String?,
+        onStatus: (String) -> Unit
+    ) {
+        val epgUrl = profile.epgUrl?.takeIf { it.isNotBlank() }
+            ?: credentials.epgUrl?.takeIf { it.isNotBlank() }
+            ?: discoveredEpg?.takeIf { it.isNotBlank() }
+            ?: if (profile.kind == ProfileKind.XTREAM) {
+                xtreamClient.epgUrl(credentials)
+            } else {
+                null
+            }
+
+        var epgOk = false
+        if (epgUrl != null) {
+            if (!discoveredEpg.isNullOrBlank()) {
+                profileDao.updateEpgUrl(profile.id, discoveredEpg)
+            }
+            epgDao.deleteByProfile(profile.id)
+            try {
+                syncEpg(profile, epgUrl, onStatus)
+                epgOk = true
+            } catch (exception: CancellationException) {
+                throw exception
+            } catch (exception: Exception) {
+                onStatus("EPG no disponible: ${exception.message ?: "error"}")
+            }
+        } else {
+            epgDao.deleteByProfile(profile.id)
+            onStatus("Sin URL de EPG del proveedor")
+        }
+
+        try {
+            syncSpanishFallbackEpg(profile, onStatus)
+        } catch (exception: CancellationException) {
+            throw exception
+        } catch (exception: Exception) {
+            onStatus("EPG española no disponible: ${exception.message ?: "error"}")
+        }
+
+        if (epgOk) {
+            settings.setLastEpgSync(profile.id, System.currentTimeMillis())
         }
     }
 
@@ -109,15 +152,15 @@ class PlaylistRepository @Inject constructor(
         val file = downloadToCache(url, "m3u_${profile.id}_")
         return try {
             if (file.length() == 0L) error("La lista M3U está vacía")
+            val fallback = fallbackMap(profile.id)
             channelDao.deleteByProfile(profile.id)
             var count = 0
-            val batch = ArrayList<com.iptvup.app.data.local.ChannelEntity>(500)
+            val batch = ArrayList<ChannelEntity>(500)
             var epgUrl: String? = null
             maybeGzip(file.inputStream()).bufferedReader().use { reader ->
                 val result = m3uParser.parse(reader) { parsed ->
                     if (ChannelQuality.isJunkChannel(parsed.name)) return@parse
-                    val entity = parsed.toEntity(profile.id)
-                    batch += entity
+                    batch += withFallbackEpg(parsed.toEntity(profile.id), fallback)
                     count++
                     if (batch.size >= 500) {
                         channelDao.upsertAll(batch)
@@ -151,14 +194,28 @@ class PlaylistRepository @Inject constructor(
         onStatus("Descargando canales...")
         val channels = xtreamClient.liveStreams(credentials, categories)
 
+        val fallback = fallbackMap(profile.id)
         channelDao.deleteByProfile(profile.id)
         channels.chunked(500).forEachIndexed { index, chunk ->
-            channelDao.upsertAll(chunk.map { it.toEntity(profile.id) })
+            channelDao.upsertAll(
+                chunk.map { withFallbackEpg(it.toEntity(profile.id), fallback) }
+            )
             onStatus("Canales: ${minOf((index + 1) * 500, channels.size)}")
         }
         onStatus("${channels.size} canales")
         return xtreamClient.epgUrl(credentials)
     }
+
+    /** Guarda los emparejamientos con la EPG española para no perderlos al actualizar canales. */
+    private suspend fun fallbackMap(profileId: String): Map<String, String> =
+        channelDao.fallbackEpgRows(profileId).associate { it.id to it.epgChannelId }
+
+    private fun withFallbackEpg(entity: ChannelEntity, fallback: Map<String, String>): ChannelEntity =
+        if (entity.epgChannelId == null) {
+            entity.copy(epgChannelId = fallback[entity.id])
+        } else {
+            entity
+        }
 
     private suspend fun syncEpg(
         profile: IptvProfile,
@@ -178,7 +235,7 @@ class PlaylistRepository @Inject constructor(
         try {
             if (file.length() == 0L) error("El EPG está vacío")
             var count = 0
-            val batch = ArrayList<com.iptvup.app.data.local.EpgProgramEntity>(500)
+            val batch = ArrayList<EpgProgramEntity>(500)
             maybeGzip(file.inputStream()).use { input ->
                 xmltvParser.parse(input, from, to, epgIds) { program ->
                     batch += program.toEntity(profile.id)
@@ -222,13 +279,11 @@ class PlaylistRepository @Inject constructor(
             if (matches.isEmpty()) return
 
             val wantedIds = matches.map { it.second }.toSet()
-            var count = 0
-            val batch = ArrayList<com.iptvup.app.data.local.EpgProgramEntity>(500)
+            val batch = ArrayList<EpgProgramEntity>(500)
             maybeGzip(file.inputStream()).use { input ->
                 xmltvParser.parse(input, from, to, wantedIds) { program ->
                     val prefixed = program.copy(epgChannelId = FALLBACK_PREFIX + program.epgChannelId)
                     batch += prefixed.toEntity(profile.id)
-                    count++
                     if (batch.size >= 500) {
                         runBlocking { epgDao.upsertAll(batch) }
                         batch.clear()

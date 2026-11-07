@@ -1,5 +1,6 @@
 package com.iptvup.app.data.sync
 
+import com.iptvup.app.core.settings.SettingsStore
 import com.iptvup.app.data.local.ChannelDao
 import com.iptvup.app.data.repository.HiddenRepository
 import com.iptvup.app.data.repository.PlaylistRepository
@@ -16,6 +17,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.launch
@@ -23,6 +25,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 private const val REFRESH_TICK_MS = 60_000L
+private const val EPG_MAX_AGE_MS = 24 * 60 * 60 * 1000L
 
 sealed interface SyncState {
     data object Idle : SyncState
@@ -36,7 +39,8 @@ class SyncManager @Inject constructor(
     private val profileRepository: ProfileRepository,
     private val playlistRepository: PlaylistRepository,
     private val hiddenRepository: HiddenRepository,
-    private val channelDao: ChannelDao
+    private val channelDao: ChannelDao,
+    private val settings: SettingsStore
 ) {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -46,11 +50,15 @@ class SyncManager @Inject constructor(
     private var job: Job? = null
     private var activeProfileId: String? = null
 
-    fun sync(profileId: String) = startSync(profileId, onlyIfEmpty = false)
+    /** Actualiza canales; la EPG solo si toca (una vez al día). */
+    fun sync(profileId: String) = startSync(profileId, onlyIfEmpty = false, epgOnly = false)
 
-    fun syncIfEmpty(profileId: String) = startSync(profileId, onlyIfEmpty = true)
+    fun syncIfEmpty(profileId: String) = startSync(profileId, onlyIfEmpty = true, epgOnly = false)
 
-    private fun startSync(profileId: String, onlyIfEmpty: Boolean) {
+    /** Descarga la EPG ahora, sin tocar los canales. */
+    fun refreshEpg(profileId: String) = startSync(profileId, onlyIfEmpty = false, epgOnly = true)
+
+    private fun startSync(profileId: String, onlyIfEmpty: Boolean, epgOnly: Boolean) {
         if (job?.isActive == true && activeProfileId == profileId) return
 
         job?.cancel()
@@ -68,12 +76,17 @@ class SyncManager @Inject constructor(
             try {
                 hiddenRepository.listen(profileId)
                 val credentials = profileRepository.getCredentials(profile)
-                playlistRepository.sync(
-                    profile = profile,
-                    credentials = credentials
-                ) { status ->
+                val onStatus: (String) -> Unit = { status ->
                     _state.value = SyncState.Running(profileId, status)
-                }.onSuccess {
+                }
+                val result = if (epgOnly) {
+                    playlistRepository.refreshEpg(profile, credentials, onStatus)
+                } else {
+                    val epgDue = System.currentTimeMillis() -
+                        settings.lastEpgSyncMs(profileId) >= EPG_MAX_AGE_MS
+                    playlistRepository.sync(profile, credentials, epgDue, onStatus)
+                }
+                result.onSuccess {
                     _state.value = SyncState.Success(profileId, System.currentTimeMillis())
                 }.onFailure {
                     _state.value = SyncState.Error(

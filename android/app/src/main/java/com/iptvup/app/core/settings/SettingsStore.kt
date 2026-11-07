@@ -49,6 +49,15 @@ class SettingsStore @Inject constructor(
         preferences[SYNC_ON_OPEN] ?: false
     }
 
+    suspend fun lastEpgSyncMs(profileId: String): Long =
+        context.settingsDataStore.data.first()[epgSyncedKey(profileId)] ?: 0L
+
+    suspend fun setLastEpgSync(profileId: String, ms: Long) {
+        context.settingsDataStore.edit { preferences ->
+            preferences[epgSyncedKey(profileId)] = ms
+        }
+    }
+
     suspend fun setSyncOnOpen(enabled: Boolean) {
         context.settingsDataStore.edit { preferences ->
             preferences[SYNC_ON_OPEN] = enabled
@@ -114,6 +123,9 @@ class SettingsStore @Inject constructor(
 
     private fun profileIconKey(profileId: String) =
         stringPreferencesKey("$PROFILE_ICON_PREFIX$profileId")
+
+    private fun epgSyncedKey(profileId: String) =
+        longPreferencesKey("epg_synced_$profileId")
 
     private fun groupOrderKey(profileId: String) =
         stringPreferencesKey("group_order_$profileId")

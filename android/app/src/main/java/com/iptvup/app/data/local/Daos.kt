@@ -103,6 +103,12 @@ interface ChannelDao {
     suspend fun updateEpgChannelId(id: String, epgId: String)
 
     @Query(
+        "SELECT id, epgChannelId FROM channels WHERE profileId = :profileId " +
+            "AND epgChannelId LIKE 'es:%'"
+    )
+    suspend fun fallbackEpgRows(profileId: String): List<FallbackEpgRow>
+
+    @Query(
         "SELECT DISTINCT epgChannelId FROM channels WHERE profileId = :profileId " +
             "AND epgChannelId IS NOT NULL AND epgChannelId != '' " +
             "AND LTRIM(name) NOT LIKE '##%' " +
@@ -114,6 +120,11 @@ interface ChannelDao {
 data class GroupCount(
     val groupName: String,
     val total: Int
+)
+
+data class FallbackEpgRow(
+    val id: String,
+    val epgChannelId: String
 )
 
 fun containsPattern(text: String): String? {

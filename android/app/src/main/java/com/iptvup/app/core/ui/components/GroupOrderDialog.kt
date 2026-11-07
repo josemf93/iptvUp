@@ -1,7 +1,6 @@
 package com.iptvup.app.core.ui.components
 
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -11,7 +10,9 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.DragHandle
 import androidx.compose.material3.AlertDialog
@@ -24,18 +25,19 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import com.iptvup.app.core.ui.theme.TextPrimary
 import com.iptvup.app.core.ui.theme.TextSecondary
+import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 private val ROW_HEIGHT = 56.dp
@@ -50,7 +52,8 @@ fun GroupOrderDialog(
     var draggingGroup by remember { mutableStateOf<String?>(null) }
     var dragOffset by remember { mutableFloatStateOf(0f) }
     var rowHeightPx by remember { mutableFloatStateOf(0f) }
-    val density = LocalDensity.current
+    val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -58,17 +61,18 @@ fun GroupOrderDialog(
         text = {
             Column {
                 Text(
-                    text = "Mantén pulsado el asa y arrastra para cambiar el orden.",
+                    text = "Mantén pulsado un grupo y arrástralo a la posición que quieras.",
                     color = TextSecondary,
                     style = MaterialTheme.typography.bodySmall
                 )
                 Spacer(Modifier.height(8.dp))
                 LazyColumn(
+                    state = listState,
                     modifier = Modifier
                         .fillMaxWidth()
                         .heightIn(max = 420.dp)
                 ) {
-                    itemsIndexed(ordered, key = { _, group -> group }) { index, group ->
+                    itemsIndexed(ordered, key = { _, group -> group }) { _, group ->
                         val isDragging = draggingGroup == group
                         Row(
                             modifier = Modifier
@@ -78,7 +82,42 @@ fun GroupOrderDialog(
                                 .offset {
                                     IntOffset(0, if (isDragging) dragOffset.roundToInt() else 0)
                                 }
-                                .onSizeChanged { rowHeightPx = it.height.toFloat() },
+                                .onSizeChanged { rowHeightPx = it.height.toFloat() }
+                                .pointerInput(group) {
+                                    detectDragGesturesAfterLongPress(
+                                        onDragStart = {
+                                            draggingGroup = group
+                                            dragOffset = 0f
+                                        },
+                                        onDragEnd = {
+                                            draggingGroup = null
+                                            dragOffset = 0f
+                                        },
+                                        onDragCancel = {
+                                            draggingGroup = null
+                                            dragOffset = 0f
+                                        },
+                                        onDrag = { change, amount ->
+                                            change.consume()
+                                            dragOffset += amount.y
+                                            val current = ordered.indexOf(group)
+                                            val threshold = rowHeightPx / 2f
+                                            if (dragOffset > threshold && current < ordered.lastIndex) {
+                                                ordered = ordered.swapped(current, current + 1)
+                                                dragOffset -= rowHeightPx
+                                                scope.launch {
+                                                    keepVisible(listState, current + 1)
+                                                }
+                                            } else if (dragOffset < -threshold && current > 0) {
+                                                ordered = ordered.swapped(current, current - 1)
+                                                dragOffset += rowHeightPx
+                                                scope.launch {
+                                                    keepVisible(listState, current - 1)
+                                                }
+                                            }
+                                        }
+                                    )
+                                },
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
@@ -89,48 +128,12 @@ fun GroupOrderDialog(
                                 overflow = TextOverflow.Ellipsis,
                                 modifier = Modifier.weight(1f)
                             )
-                            Box(
-                                modifier = Modifier
-                                    .size(ROW_HEIGHT)
-                                    .pointerInput(group) {
-                                        detectDragGesturesAfterLongPress(
-                                            onDragStart = {
-                                                draggingGroup = group
-                                                dragOffset = 0f
-                                            },
-                                            onDragEnd = {
-                                                draggingGroup = null
-                                                dragOffset = 0f
-                                            },
-                                            onDragCancel = {
-                                                draggingGroup = null
-                                                dragOffset = 0f
-                                            },
-                                            onDrag = { change, amount ->
-                                                change.consume()
-                                                dragOffset += amount.y
-                                                val current = ordered.indexOf(group)
-                                                val threshold = rowHeightPx / 2f
-                                                if (dragOffset > threshold &&
-                                                    current < ordered.lastIndex
-                                                ) {
-                                                    ordered = ordered.swapped(current, current + 1)
-                                                    dragOffset -= rowHeightPx
-                                                } else if (dragOffset < -threshold && current > 0) {
-                                                    ordered = ordered.swapped(current, current - 1)
-                                                    dragOffset += rowHeightPx
-                                                }
-                                            }
-                                        )
-                                    },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Rounded.DragHandle,
-                                    contentDescription = "Arrastrar $group",
-                                    tint = TextSecondary
-                                )
-                            }
+                            Icon(
+                                imageVector = Icons.Rounded.DragHandle,
+                                contentDescription = "Arrastrar $group",
+                                tint = TextSecondary,
+                                modifier = Modifier.size(24.dp)
+                            )
                         }
                     }
                 }
@@ -152,6 +155,18 @@ fun GroupOrderDialog(
             }
         }
     )
+}
+
+/** Desplaza la lista lo justo para que el grupo movido siga visible. */
+private suspend fun keepVisible(listState: LazyListState, index: Int) {
+    val visible = listState.layoutInfo.visibleItemsInfo
+    if (visible.isEmpty()) return
+    val first = visible.first().index
+    val last = visible.last().index
+    when {
+        index <= first -> listState.animateScrollToItem((index - 1).coerceAtLeast(0))
+        index >= last -> listState.animateScrollToItem((index - visible.size + 2).coerceAtLeast(0))
+    }
 }
 
 private fun List<String>.swapped(a: Int, b: Int): List<String> =

@@ -108,6 +108,7 @@ fun LiveTvLayout(
     val focusedChannel by viewModel.focusedChannel.collectAsStateWithLifecycle()
     val focusedPrograms by viewModel.focusedPrograms.collectAsStateWithLifecycle()
     val syncing by viewModel.syncing.collectAsStateWithLifecycle()
+    val status by viewModel.status.collectAsStateWithLifecycle()
     val error by viewModel.error.collectAsStateWithLifecycle()
     val ready by viewModel.ready.collectAsStateWithLifecycle()
 
@@ -181,7 +182,7 @@ fun LiveTvLayout(
     Row(modifier = Modifier.fillMaxSize()) {
         Column(
             modifier = Modifier
-                .weight(0.36f)
+                .weight(0.6f)
                 .fillMaxHeight()
                 .padding(start = 16.dp, end = 12.dp, top = 12.dp, bottom = 12.dp)
         ) {
@@ -239,6 +240,17 @@ fun LiveTvLayout(
                         tint = if (query.isNotBlank()) Primary else TextSecondary
                     )
                 }
+            }
+
+            if (syncing) {
+                Text(
+                    text = status.ifBlank { "Actualizando..." },
+                    color = TextSecondary,
+                    style = MaterialTheme.typography.labelSmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
             }
 
             error?.let { message ->
@@ -347,7 +359,7 @@ fun LiveTvLayout(
 
         Column(
             modifier = Modifier
-                .weight(0.64f)
+                .weight(0.4f)
                 .fillMaxHeight()
                 .padding(20.dp)
         ) {
@@ -506,7 +518,10 @@ private fun Modifier.groupMoveKeys(
         }
 
         isMoving && isCenter -> {
-            if (event.type == KeyEventType.KeyUp) onEndMove()
+            // Soltar el OK del mantenido no termina el modo mover; solo un OK nuevo lo guarda.
+            if (event.type == KeyEventType.KeyDown && !event.nativeKeyEvent.isLongPress) {
+                onEndMove()
+            }
             true
         }
 

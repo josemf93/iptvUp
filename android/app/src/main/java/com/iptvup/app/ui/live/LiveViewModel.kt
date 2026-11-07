@@ -254,8 +254,7 @@ class LiveViewModel @Inject constructor(
         }
     }
 
-    fun createPreviewPlayer(context: Context): ExoPlayer =
-        buildStreamPlayer(context, okHttp).apply { volume = 0f }
+    fun createPreviewPlayer(context: Context): ExoPlayer = buildStreamPlayer(context, okHttp)
 
     fun setQuery(value: String) {
         _query.value = value

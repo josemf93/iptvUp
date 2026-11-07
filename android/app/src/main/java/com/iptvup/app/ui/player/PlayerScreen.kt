@@ -67,6 +67,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
@@ -157,6 +159,8 @@ fun PlayerScreen(
     var autoRetries by remember { mutableIntStateOf(0) }
     var reconnectTick by remember { mutableIntStateOf(0) }
     var inBackground by remember { mutableStateOf(false) }
+    var topBarPx by remember { mutableFloatStateOf(0f) }
+    var bottomBarPx by remember { mutableFloatStateOf(0f) }
     val lifecycleOwner = LocalLifecycleOwner.current
     val pipMode by PipState.isInPip.collectAsStateWithLifecycle()
     val focusRequester = remember { FocusRequester() }
@@ -512,6 +516,13 @@ fun PlayerScreen(
                     .pointerInput(Unit) {
                         awaitEachGesture {
                             val down = awaitFirstDown(requireUnconsumed = false)
+                            val topLimit = if (controlsVisible) topBarPx else 0f
+                            val bottomLimit = if (controlsVisible) bottomBarPx else 0f
+                            if (down.position.y < topLimit ||
+                                down.position.y > size.height - bottomLimit
+                            ) {
+                                return@awaitEachGesture
+                            }
                             var totalX = 0f
                             var totalY = 0f
                             var lastPosition = down.position
@@ -600,6 +611,7 @@ fun PlayerScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .align(Alignment.TopCenter)
+                        .onSizeChanged { topBarPx = it.height.toFloat() }
                         .background(
                             Brush.verticalGradient(
                                 listOf(Color.Black.copy(alpha = 0.82f), Color.Transparent)
@@ -847,6 +859,7 @@ fun PlayerScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .align(Alignment.BottomCenter)
+                        .onSizeChanged { bottomBarPx = it.height.toFloat() }
                         .background(
                             Brush.verticalGradient(
                                 listOf(Color.Transparent, Color.Black.copy(alpha = 0.9f))

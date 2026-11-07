@@ -25,6 +25,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Clear
 import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -95,8 +98,10 @@ fun EpgScreen(
     val query by viewModel.query.collectAsStateWithLifecycle()
     val error by viewModel.error.collectAsStateWithLifecycle()
     val ready by viewModel.ready.collectAsStateWithLifecycle()
+    val syncing by viewModel.syncing.collectAsStateWithLifecycle()
+    val status by viewModel.status.collectAsStateWithLifecycle()
     val television = isTelevision()
-    var showSearchDialog by remember { mutableStateOf(false) }
+    var confirmRefresh by remember { mutableStateOf(false) }
 
     val visibleGroups = remember(groups, query) {
         if (query.isBlank()) {
@@ -132,45 +137,31 @@ fun EpgScreen(
                         style = MaterialTheme.typography.bodySmall
                     )
                 }
-                if (television) {
-                    TvIconButton(onClick = { showSearchDialog = true }) {
+                if (syncing) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(22.dp),
+                        color = Primary,
+                        strokeWidth = 2.dp
+                    )
+                } else {
+                    TvIconButton(onClick = { confirmRefresh = true }) {
                         Icon(
-                            imageVector = Icons.Rounded.Search,
-                            contentDescription = "Buscar",
-                            tint = if (query.isNotBlank()) Primary else TextSecondary
+                            imageVector = Icons.Rounded.Refresh,
+                            contentDescription = "Actualizar guía",
+                            tint = TextSecondary
                         )
                     }
                 }
             }
 
-            if (!television) {
-                Spacer(Modifier.height(10.dp))
-                OutlinedTextField(
-                    value = query,
-                    onValueChange = viewModel::setQuery,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(28.dp),
-                    placeholder = { Text("Buscar canal o grupo") },
-                    leadingIcon = {
-                        Icon(Icons.Rounded.Search, contentDescription = null)
-                    },
-                    trailingIcon = {
-                        if (query.isNotEmpty()) {
-                            TvIconButton(onClick = { viewModel.setQuery("") }) {
-                                Icon(Icons.Rounded.Clear, contentDescription = "Limpiar")
-                            }
-                        }
-                    },
-                    singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedContainerColor = SurfaceDark,
-                        unfocusedContainerColor = SurfaceDark,
-                        focusedBorderColor = Primary,
-                        unfocusedBorderColor = TextSecondary.copy(alpha = 0.25f),
-                        focusedTextColor = TextPrimary,
-                        unfocusedTextColor = TextPrimary,
-                        cursorColor = Primary
-                    )
+            if (syncing) {
+                Text(
+                    text = status.ifBlank { "Actualizando guía..." },
+                    color = TextSecondary,
+                    style = MaterialTheme.typography.labelSmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 4.dp)
                 )
             }
             error?.let { message ->
@@ -291,8 +282,6 @@ fun EpgScreen(
                             }
                         )
                     }
-                } else if (television) {
-                    EpgTvList(ui = ui, onPlay = onPlay)
                 } else {
                     EpgTimeline(ui = ui, onPlay = onPlay)
                 }
@@ -300,11 +289,26 @@ fun EpgScreen(
         }
     }
 
-    if (showSearchDialog) {
-        SearchDialog(
-            initialQuery = query,
-            onQueryChange = viewModel::setQuery,
-            onDismiss = { showSearchDialog = false }
+    if (confirmRefresh) {
+        AlertDialog(
+            onDismissRequest = { confirmRefresh = false },
+            title = { Text("Actualizar guía") },
+            text = { Text("¿Desea actualizar la guía EPG ahora?") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        confirmRefresh = false
+                        viewModel.refreshEpg()
+                    }
+                ) {
+                    Text("Sí")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmRefresh = false }) {
+                    Text("No")
+                }
+            }
         )
     }
 }
