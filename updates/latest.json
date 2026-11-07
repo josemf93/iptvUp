@@ -1,8 +1,8 @@
 {
-  "versionCode": 15,
-  "versionName": "0.9.0",
-  "apkUrl": "https://github.com/josemf93/iptvUp/releases/download/v0.9.0/IPTVUp-v0.9.0.apk",
-  "sha256": "e760df3d3616f53699c1fb5b470320b13cf614fa209d7bf7ab2f3513209b520e",
+  "versionCode": 16,
+  "versionName": "0.9.1",
+  "apkUrl": "https://github.com/josemf93/iptvUp/releases/download/v0.9.1/IPTVUp-v0.9.1.apk",
+  "sha256": "c8dc17c1004a0e30a13c43cc9faed6fd196590d77d079457499ffc4f8cfa843b",
   "minSupportedVersionCode": 1,
-  "notes": "TV: nuevo diseño con grupos, canales, vista previa y EPG; reordenar grupos manteniendo OK. Móvil: reordenar grupos arrastrando. Favoritos, ocultos y orden sincronizados en tiempo real con la cuenta. Sincronización opcional al entrar en el perfil. Deportes: fútbol, baloncesto y tenis con el canal de la API. EPG española de respaldo por nombre."
+  "notes": "Inicio: pestañas Fútbol, Tenis y Baloncesto en la tarjeta de deportes. TV: vista previa con sonido, menú central más amplio, sin sombra de fondo en los iconos, estado de actualización visible y reordenar grupos manteniendo OK y confirmando con OK. Guía: refresco manual de EPG, diseño de canales con línea de tiempo también en TV y EPG que se actualiza una vez al día. Móvil: reordenar grupos arrastrando desde cualquier parte de la fila con desplazamiento automático, y toques en la barra superior del reproductor sin conflictos."
 }
