@@ -18,8 +18,8 @@ android {
         applicationId = "com.iptvup.app"
         minSdk = 24
         targetSdk = 35
-        versionCode = 19
-        versionName = "0.9.4"
+        versionCode = 20
+        versionName = "0.9.5"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }
     }

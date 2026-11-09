@@ -38,12 +38,12 @@ import com.iptvup.app.core.ui.theme.TextSecondary
 fun GroupVisibilityDialog(
     groups: List<String>,
     hiddenGroups: Set<String>,
-    onToggle: (String) -> Unit,
-    onShowAll: () -> Unit,
-    onHideAll: () -> Unit,
+    onSave: (Set<String>) -> Unit,
     onDismiss: () -> Unit
 ) {
     var query by remember { mutableStateOf("") }
+    // Los cambios se guardan en un borrador: Cancelar no toca la configuración actual.
+    var draftHidden by remember { mutableStateOf(hiddenGroups) }
     val visibleGroups = remember(groups, query) {
         if (query.isBlank()) {
             groups
@@ -99,10 +99,10 @@ fun GroupVisibilityDialog(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    TextButton(onClick = onShowAll) {
+                    TextButton(onClick = { draftHidden = emptySet() }) {
                         Text("Mostrar todos")
                     }
-                    TextButton(onClick = onHideAll) {
+                    TextButton(onClick = { draftHidden = groups.toSet() }) {
                         Text("Ocultar todos")
                     }
                 }
@@ -134,16 +134,27 @@ fun GroupVisibilityDialog(
                             overflow = TextOverflow.Ellipsis
                         )
                         Checkbox(
-                            checked = group !in hiddenGroups,
-                            onCheckedChange = { onToggle(group) }
+                            checked = group !in draftHidden,
+                            onCheckedChange = { checked ->
+                                draftHidden = if (checked) {
+                                    draftHidden - group
+                                } else {
+                                    draftHidden + group
+                                }
+                            }
                         )
                     }
                 }
             }
         },
         confirmButton = {
+            TextButton(onClick = { onSave(draftHidden) }) {
+                Text("Guardar")
+            }
+        },
+        dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Listo")
+                Text("Cancelar")
             }
         }
     )

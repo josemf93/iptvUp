@@ -35,12 +35,12 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
@@ -65,7 +65,7 @@ data class GroupReorder(
 )
 
 private const val EDGE_PX = 140f
-private const val MAX_AUTOSCROLL_STEP_PX = 4f
+private const val MAX_AUTOSCROLL_STEP_PX = 7f
 
 @Composable
 fun GroupGrid(
@@ -76,21 +76,65 @@ fun GroupGrid(
     reorder: GroupReorder? = null
 ) {
     val gridState = rememberLazyGridState()
-    val scope = rememberCoroutineScope()
     val currentReorder by rememberUpdatedState(reorder)
     var dragging by remember { mutableStateOf<String?>(null) }
     var fingerPos by remember { mutableStateOf(Offset.Zero) }
     var dragOffset by remember { mutableStateOf(Offset.Zero) }
     var blockedTarget by remember { mutableStateOf<String?>(null) }
 
+    /** Posición del dedo limitada al bloque de grupos, para que el destino no se pierda fuera de la lista. */
+    fun pointerInViewport(): Offset {
+        val info = gridState.layoutInfo
+        val maxX = (info.viewportSize.width - 1).coerceAtLeast(1).toFloat()
+        val maxY = (info.viewportSize.height - 1).coerceAtLeast(1).toFloat()
+        return Offset(
+            fingerPos.x.coerceIn(0f, maxX),
+            fingerPos.y.coerceIn(0f, maxY)
+        )
+    }
+
+    /** Mantiene la tarjeta arrastrada dentro del bloque de grupos, sin invadir cabecera ni barra inferior. */
+    fun clampDraggedCard(dragged: String) {
+        val info = gridState.layoutInfo
+        val item = info.visibleItemsInfo.firstOrNull { it.key == dragged } ?: return
+        val viewportHeight = info.viewportSize.height.toFloat()
+        val viewportWidth = info.viewportSize.width.toFloat()
+        val top = item.offset.y + dragOffset.y
+        val bottom = top + item.size.height
+        val left = item.offset.x + dragOffset.x
+        val right = left + item.size.width
+        val correctionX = when {
+            left < 0f -> -left
+            right > viewportWidth -> viewportWidth - right
+            else -> 0f
+        }
+        val correctionY = when {
+            top < 0f -> -top
+            bottom > viewportHeight -> viewportHeight - bottom
+            else -> 0f
+        }
+        if (correctionX != 0f || correctionY != 0f) {
+            dragOffset += Offset(correctionX, correctionY)
+        }
+    }
+
     fun checkTarget(dragged: String) {
         val reorderNow = currentReorder ?: return
         val items = gridState.layoutInfo.visibleItemsInfo
         val draggedInfo = items.firstOrNull { it.key == dragged } ?: return
-        val over = items.firstOrNull { item ->
-            fingerPos.x >= item.offset.x && fingerPos.x < item.offset.x + item.size.width &&
-                fingerPos.y >= item.offset.y && fingerPos.y < item.offset.y + item.size.height
+        val pointer = pointerInViewport()
+        val direct = items.firstOrNull { item ->
+            pointer.x >= item.offset.x && pointer.x < item.offset.x + item.size.width &&
+                pointer.y >= item.offset.y && pointer.y < item.offset.y + item.size.height
         }
+        // Si el dedo está en un hueco o en el borde, se elige la tarjeta más cercana.
+        val over = direct ?: items
+            .filter { it.key != dragged }
+            .minByOrNull { item ->
+                val dx = item.offset.x + item.size.width / 2f - pointer.x
+                val dy = item.offset.y + item.size.height / 2f - pointer.y
+                dx * dx + dy * dy
+            }
         val target = over?.key as? String
         if (over == null || target == null || target == dragged) {
             blockedTarget = null
@@ -99,6 +143,7 @@ fun GroupGrid(
         // Tras reordenar, la tarjeta arrastrada ocupa el hueco del destino: no volver a intentarlo hasta salir de él.
         if (target == blockedTarget) return
         blockedTarget = target
+        clampDraggedCard(dragged)
         reorderNow.onOver(dragged, target)
         dragOffset += Offset(
             (draggedInfo.offset.x - over.offset.x).toFloat(),
@@ -111,7 +156,7 @@ fun GroupGrid(
         while (true) {
             delay(16)
             val viewport = gridState.layoutInfo.viewportSize.height.toFloat()
-            val y = fingerPos.y
+            val y = pointerInViewport().y
             val step = when {
                 y < EDGE_PX -> -((EDGE_PX - y) / 20f).coerceAtMost(MAX_AUTOSCROLL_STEP_PX)
                 y > viewport - EDGE_PX -> ((y - (viewport - EDGE_PX)) / 20f).coerceAtMost(MAX_AUTOSCROLL_STEP_PX)
@@ -123,6 +168,7 @@ fun GroupGrid(
                     consumed = scrollBy(step)
                 }
                 dragOffset += Offset(0f, consumed)
+                clampDraggedCard(current)
             }
             checkTarget(current)
         }
@@ -134,7 +180,9 @@ fun GroupGrid(
         contentPadding = PaddingValues(20.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
-        modifier = Modifier.fillMaxSize()
+        modifier = Modifier
+            .fillMaxSize()
+            .clipToBounds()
     ) {
         items(groups, key = { it }) { group ->
             val isDragged = dragging == group
@@ -159,6 +207,7 @@ fun GroupGrid(
                             change.consume()
                             fingerPos += amount
                             dragOffset += amount
+                            clampDraggedCard(group)
                             checkTarget(group)
                         },
                         onDragEnd = {

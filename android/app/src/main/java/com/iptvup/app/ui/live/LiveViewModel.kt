@@ -274,12 +274,18 @@ class LiveViewModel @Inject constructor(
         }
     }
 
-    fun toggleGroupHidden(group: String) {
-        if (_selectedGroup.value == group) {
+    /** Guarda de golpe los grupos visibles elegidos en el diálogo. */
+    fun saveHiddenGroups(hiddenGroups: Set<String>) {
+        val selected = _selectedGroup.value
+        if (selected != null && selected in hiddenGroups) {
             _selectedGroup.value = null
         }
         viewModelScope.launch {
-            hiddenRepository.toggleGroup(profileId, group)
+            hiddenRepository.setGroupsHidden(
+                profileId,
+                hiddenGroups.toList(),
+                hidden = hiddenGroups.isNotEmpty()
+            )
         }
     }
 
@@ -289,19 +295,6 @@ class LiveViewModel @Inject constructor(
 
     fun dismissError() {
         syncManager.clearError(profileId)
-    }
-
-    fun showAllGroups() {
-        viewModelScope.launch {
-            hiddenRepository.setGroupsHidden(profileId, allGroups.value, hidden = false)
-        }
-    }
-
-    fun hideAllGroups() {
-        _selectedGroup.value = null
-        viewModelScope.launch {
-            hiddenRepository.setGroupsHidden(profileId, allGroups.value, hidden = true)
-        }
     }
 
     /** Empieza a reordenar: copia el orden actual a un borrador que se guarda al terminar. */

@@ -471,9 +471,10 @@ fun LiveTvLayout(
         GroupVisibilityDialog(
             groups = allGroups,
             hiddenGroups = hiddenGroups,
-            onToggle = viewModel::toggleGroupHidden,
-            onShowAll = viewModel::showAllGroups,
-            onHideAll = viewModel::hideAllGroups,
+            onSave = { hidden ->
+                viewModel.saveHiddenGroups(hidden)
+                showVisibility = false
+            },
             onDismiss = { showVisibility = false }
         )
     }
