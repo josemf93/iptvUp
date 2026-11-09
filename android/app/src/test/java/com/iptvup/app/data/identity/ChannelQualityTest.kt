@@ -20,6 +20,15 @@ class ChannelQualityTest {
     }
 
     @Test
+    fun detectsQualityGluedToNameAndInvisibleChars() {
+        assertEquals("HD", ChannelQuality.label("ES: MOVISTAR COMEDIA hd"))
+        assertEquals("HD", ChannelQuality.label("ES: MOVISTAR COMEDIAHD"))
+        assertEquals("HD", ChannelQuality.label("ES: MOVISTAR COMEDIA\u200BHD"))
+        assertEquals("FHD", ChannelQuality.label("ES: MOVISTAR COMEDIAFHD"))
+        assertEquals("HD", ChannelQuality.label("ES: MOVISTAR COMEDIA ＨＤ"))
+    }
+
+    @Test
     fun removesQualityFromBaseName() {
         assertEquals("Canal 1", ChannelQuality.baseName("Canal 1 HD"))
         assertEquals("Canal 1", ChannelQuality.baseName("Canal 1 4K UHD"))

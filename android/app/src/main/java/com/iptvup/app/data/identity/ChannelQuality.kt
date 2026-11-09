@@ -1,5 +1,7 @@
 package com.iptvup.app.data.identity
 
+import java.text.Normalizer
+
 object ChannelQuality {
 
     fun label(name: String): String? = detect(name)
@@ -37,7 +39,9 @@ object ChannelQuality {
         .trim()
 
     private fun detect(name: String): String? {
-        val value = name.uppercase()
+        val value = Normalizer.normalize(name, Normalizer.Form.NFKC)
+            .replace(INVISIBLE_REGEX, "")
+            .uppercase()
         return when {
             RE_8K.containsMatchIn(value) -> "8K"
             RE_4K.containsMatchIn(value) -> "4K"
@@ -51,8 +55,9 @@ object ChannelQuality {
     private const val UNKNOWN = "UNKNOWN"
     private val RE_8K = Regex("\\b8K\\b|\\b4320P?\\b")
     private val RE_4K = Regex("\\b4K\\b|\\bUHD\\b|\\b2160P?\\b")
-    private val RE_FHD = Regex("\\bFHD\\b|\\bFULL\\s*HD\\b|\\b1080P?\\b")
-    private val RE_HD = Regex("\\bHD\\b|\\b720P?\\b")
+    private val RE_FHD = Regex("\\bFHD\\b|[A-Z]{3,}FHD$|\\bFULL\\s*HD\\b|\\b1080P?\\b")
+    private val RE_HD = Regex("\\bHD\\b|[A-Z]{3,}HD$|\\b720P?\\b")
+    private val INVISIBLE_REGEX = Regex("[\\u200B-\\u200D\\u2060\\uFEFF\\u00AD]")
     private val RE_SD = Regex("\\bSD\\b|\\b480P?\\b|\\b576P?\\b")
     private val QUALITY_IN_NAME_REGEX = Regex(
         "(?i)\\b(8K|4K|UHD|FHD|FULL\\s*HD|1080P?|720P?|480P?|576P?|SD|HD|HEVC|H265|H264)\\b"

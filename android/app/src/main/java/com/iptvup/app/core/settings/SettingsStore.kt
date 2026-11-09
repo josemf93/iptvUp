@@ -52,6 +52,11 @@ class SettingsStore @Inject constructor(
     suspend fun lastEpgSyncMs(profileId: String): Long =
         context.settingsDataStore.data.first()[epgSyncedKey(profileId)] ?: 0L
 
+    fun lastEpgSyncFlow(profileId: String): Flow<Long> =
+        context.settingsDataStore.data.map { preferences ->
+            preferences[epgSyncedKey(profileId)] ?: 0L
+        }
+
     suspend fun setLastEpgSync(profileId: String, ms: Long) {
         context.settingsDataStore.edit { preferences ->
             preferences[epgSyncedKey(profileId)] = ms

@@ -65,6 +65,7 @@ data class GroupReorder(
 )
 
 private const val EDGE_PX = 140f
+private const val MAX_AUTOSCROLL_STEP_PX = 4f
 
 @Composable
 fun GroupGrid(
@@ -112,8 +113,8 @@ fun GroupGrid(
             val viewport = gridState.layoutInfo.viewportSize.height.toFloat()
             val y = fingerPos.y
             val step = when {
-                y < EDGE_PX -> -(EDGE_PX - y) / 5f
-                y > viewport - EDGE_PX -> (y - (viewport - EDGE_PX)) / 5f
+                y < EDGE_PX -> -((EDGE_PX - y) / 20f).coerceAtMost(MAX_AUTOSCROLL_STEP_PX)
+                y > viewport - EDGE_PX -> ((y - (viewport - EDGE_PX)) / 20f).coerceAtMost(MAX_AUTOSCROLL_STEP_PX)
                 else -> 0f
             }
             if (step != 0f) {

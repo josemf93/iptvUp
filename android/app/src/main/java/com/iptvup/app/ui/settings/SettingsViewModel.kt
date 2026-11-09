@@ -63,6 +63,12 @@ class SettingsViewModel @Inject constructor(
             initialValue = 0
         )
 
+    val lastEpgSync = settingsStore.lastEpgSyncFlow(profileId).stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = 0L
+    )
+
     val updateState = updateManager.state
 
     init {

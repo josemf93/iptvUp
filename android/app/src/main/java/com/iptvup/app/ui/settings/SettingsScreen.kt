@@ -76,6 +76,7 @@ fun SettingsScreen(
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
     val channelCount by viewModel.channelCount.collectAsStateWithLifecycle()
+    val lastEpgSync by viewModel.lastEpgSync.collectAsStateWithLifecycle()
     val updateState by viewModel.updateState.collectAsStateWithLifecycle()
     val syncOnOpen by viewModel.syncOnOpen.collectAsStateWithLifecycle()
     var confirmLogout by remember { mutableStateOf(false) }
@@ -135,8 +136,19 @@ fun SettingsScreen(
             HorizontalDivider(color = SurfaceElevated)
             Spacer(Modifier.height(14.dp))
             Text(
-                text = "$channelCount canales en caché · " +
-                    "Última sync: ${formatLastSync(viewModel.profile?.lastSyncedAt)}",
+                text = "$channelCount canales en caché",
+                color = TextSecondary,
+                style = MaterialTheme.typography.bodySmall
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = "Última sync de canales: ${formatLastSync(viewModel.profile?.lastSyncedAt)}",
+                color = TextSecondary,
+                style = MaterialTheme.typography.bodySmall
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = "Última sync de EPG: ${formatLastSync(lastEpgSync)}",
                 color = TextSecondary,
                 style = MaterialTheme.typography.bodySmall
             )
