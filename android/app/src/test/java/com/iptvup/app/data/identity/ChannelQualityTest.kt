@@ -29,6 +29,11 @@ class ChannelQualityTest {
     }
 
     @Test
+    fun treatsRawFeedAsSd() {
+        assertEquals("SD", ChannelQuality.label("ES: MOVISTAR LALIGA RAW"))
+    }
+
+    @Test
     fun removesQualityFromBaseName() {
         assertEquals("Canal 1", ChannelQuality.baseName("Canal 1 HD"))
         assertEquals("Canal 1", ChannelQuality.baseName("Canal 1 4K UHD"))

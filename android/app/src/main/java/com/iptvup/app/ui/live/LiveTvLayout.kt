@@ -1,8 +1,10 @@
 package com.iptvup.app.ui.live
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
@@ -20,6 +22,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -95,6 +98,20 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 private const val PREVIEW_DELAY_MS = 700L
+private const val GROUP_MOVE_SCROLL_MS = 120
+
+/** Desplaza la lista al grupo en movimiento con una animación más corta que la estándar. */
+private suspend fun LazyListState.quickScrollToItem(index: Int) {
+    val visible = layoutInfo.visibleItemsInfo.firstOrNull { it.index == index }
+    if (visible == null) {
+        scrollToItem(index)
+    } else {
+        animateScrollBy(
+            (visible.offset - layoutInfo.viewportStartOffset).toFloat(),
+            tween(GROUP_MOVE_SCROLL_MS)
+        )
+    }
+}
 
 /** Diseño de TV: grupos o canales en el centro, vista previa y EPG a la derecha. */
 @Composable
@@ -179,7 +196,7 @@ fun LiveTvLayout(
         val movingNow = moving ?: return@LaunchedEffect
         if (moveTick == 0) return@LaunchedEffect
         val index = visibleGroups.indexOf(movingNow).coerceAtLeast(0)
-        groupsListState.animateScrollToItem(index)
+        groupsListState.quickScrollToItem(index)
         runCatching { movingRequester.requestFocus() }
     }
 

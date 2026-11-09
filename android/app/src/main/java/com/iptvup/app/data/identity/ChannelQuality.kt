@@ -58,7 +58,9 @@ object ChannelQuality {
     private val RE_FHD = Regex("\\bFHD\\b|[A-Z]{3,}FHD$|\\bFULL\\s*HD\\b|\\b1080P?\\b")
     private val RE_HD = Regex("\\bHD\\b|[A-Z]{3,}HD$|\\b720P?\\b")
     private val INVISIBLE_REGEX = Regex("[\\u200B-\\u200D\\u2060\\uFEFF\\u00AD]")
-    private val RE_SD = Regex("\\bSD\\b|\\b480P?\\b|\\b576P?\\b")
+    // RAW se usa en muchas listas para los feeds de respaldo; se trata como SD para que
+    // nunca gane a un canal HD/FHD al elegir emisión de un evento.
+    private val RE_SD = Regex("\\bSD\\b|\\bRAW\\b|\\b480P?\\b|\\b576P?\\b")
     private val QUALITY_IN_NAME_REGEX = Regex(
         "(?i)\\b(8K|4K|UHD|FHD|FULL\\s*HD|1080P?|720P?|480P?|576P?|SD|HD|HEVC|H265|H264)\\b"
     )

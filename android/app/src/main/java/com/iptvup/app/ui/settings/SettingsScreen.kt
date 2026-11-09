@@ -97,11 +97,6 @@ fun SettingsScreen(
             style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Bold
         )
-        Text(
-            text = "Cuenta, perfil y datos descargados",
-            color = TextSecondary,
-            style = MaterialTheme.typography.bodySmall
-        )
         Spacer(Modifier.height(16.dp))
 
         SettingsCard {

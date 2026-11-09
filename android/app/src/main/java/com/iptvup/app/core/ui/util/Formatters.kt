@@ -16,6 +16,14 @@ fun formatDateTime(ms: Long): String =
 fun formatDay(ms: Long): String =
     SimpleDateFormat("EEE d MMM", Locale.getDefault()).format(Date(ms))
 
+private val todayFormat: ThreadLocal<SimpleDateFormat> = ThreadLocal.withInitial {
+    SimpleDateFormat("EEEE, d 'de' MMMM", Locale("es", "ES"))
+}
+
+/** Fecha de hoy en español, por ejemplo "Lunes 9 de noviembre". */
+fun formatToday(): String = todayFormat.get()!!.format(Date())
+    .replaceFirstChar { it.titlecase(Locale("es", "ES")) }
+
 fun formatLastSync(ms: Long?): String =
     if (ms == null || ms <= 0L) "Nunca" else formatDateTime(ms)
 

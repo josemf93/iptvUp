@@ -66,6 +66,7 @@ import com.iptvup.app.core.ui.theme.Primary
 import com.iptvup.app.core.ui.theme.TextPrimary
 import com.iptvup.app.core.ui.theme.TextSecondary
 import com.iptvup.app.core.ui.util.formatTime
+import com.iptvup.app.core.ui.util.formatToday
 import com.iptvup.app.core.ui.util.isTelevision
 import com.iptvup.app.data.local.RecentChannelEntity
 import com.iptvup.app.data.model.IptvProfile
@@ -230,7 +231,7 @@ private fun SportsCard(
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        text = "Hoy · fútbol, baloncesto y tenis",
+                        text = formatToday(),
                         color = Color.White.copy(alpha = 0.7f),
                         style = MaterialTheme.typography.labelSmall
                     )
