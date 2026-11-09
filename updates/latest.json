@@ -1,8 +1,8 @@
 {
-  "versionCode": 21,
-  "versionName": "0.9.6",
-  "apkUrl": "https://github.com/josemf93/iptvUp/releases/download/v0.9.6/IPTVUp-v0.9.6.apk",
-  "sha256": "69fc4993342c620ae7325c3fcfa41797aa2c0d687281afcc4844164104cc106e",
+  "versionCode": 22,
+  "versionName": "0.9.7",
+  "apkUrl": "https://github.com/josemf93/iptvUp/releases/download/v0.9.7/IPTVUp-v0.9.7.apk",
+  "sha256": "3c2cdabd2398d71afe5beb6409c9507c9c3e588fb06b46cbac9803f0cd82c0a9",
   "minSupportedVersionCode": 1,
-  "notes": "Arrastre de grupos en móvil reescrito: la tarjeta sigue al dedo sin salirse del bloque, scroll en los bordes más rápido y reordenado fluido. Vista de grupos en cuadrícula o lista. Con el buscador activo no se puede reordenar. Listas W3U: ahora se leen los canales de todas las sub-listas. Registro de diagnóstico ampliado a toda la app. Cast: avisa si la TV no puede reproducir y sigue en el móvil."
+  "notes": "Listas W3U por categorías (como WisePlay), con las sub-secciones como prefijo del nombre. Canales Ace Stream y de motor local: se abren con otra app (Ace Stream, VLC...). Cast: el móvil ya no reproduce a la vez que la TV y avisa si la TV no puede reproducir el canal. Registro de diagnóstico ampliado a toda la app."
 }
