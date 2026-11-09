@@ -49,6 +49,16 @@ class SettingsStore @Inject constructor(
         preferences[SYNC_ON_OPEN] ?: false
     }
 
+    val groupListMode: Flow<Boolean> = context.settingsDataStore.data.map { preferences ->
+        preferences[GROUP_LIST_MODE] ?: false
+    }
+
+    suspend fun setGroupListMode(enabled: Boolean) {
+        context.settingsDataStore.edit { preferences ->
+            preferences[GROUP_LIST_MODE] = enabled
+        }
+    }
+
     suspend fun lastEpgSyncMs(profileId: String): Long =
         context.settingsDataStore.data.first()[epgSyncedKey(profileId)] ?: 0L
 
@@ -141,5 +151,6 @@ class SettingsStore @Inject constructor(
         val SKIPPED_VERSION_CODE = intPreferencesKey("skipped_version_code")
         val LAST_UPDATE_CHECK = longPreferencesKey("last_update_check_ms")
         val SYNC_ON_OPEN = booleanPreferencesKey("sync_on_open")
+        val GROUP_LIST_MODE = booleanPreferencesKey("group_list_mode")
     }
 }

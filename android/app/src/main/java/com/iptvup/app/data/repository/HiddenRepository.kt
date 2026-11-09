@@ -1,6 +1,7 @@
 package com.iptvup.app.data.repository
 
 import com.google.firebase.auth.FirebaseAuth
+import com.iptvup.app.core.diag.DiagLog
 import com.iptvup.app.data.local.HiddenDao
 import com.iptvup.app.data.local.HiddenItemEntity
 import com.iptvup.app.data.remote.ProfileRemoteDataSource
@@ -72,7 +73,7 @@ class HiddenRepository @Inject constructor(
         val uid = auth.currentUser?.uid ?: return
         runCatching {
             remote.setHiddenKind(uid, profileId, KIND_GROUP, target)
-        }
+        }.onFailure { DiagLog.logError("No se pudieron guardar los grupos ocultos en la nube", it) }
     }
 
     private suspend fun toggle(profileId: String, kind: String, itemKey: String) {
@@ -97,7 +98,7 @@ class HiddenRepository @Inject constructor(
             } else {
                 remote.addHidden(uid, profileId, kind, itemKey)
             }
-        }
+        }.onFailure { DiagLog.logError("No se pudo guardar un elemento oculto en la nube", it) }
     }
 
     companion object {

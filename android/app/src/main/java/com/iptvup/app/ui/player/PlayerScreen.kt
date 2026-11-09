@@ -320,6 +320,9 @@ fun PlayerScreen(
             },
             onEnded = {
                 runCatching { player.play() }
+            },
+            onError = {
+                runCatching { player.play() }
             }
         )
         onDispose { castController?.detach() }

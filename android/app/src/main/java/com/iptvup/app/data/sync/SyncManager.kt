@@ -1,5 +1,6 @@
 package com.iptvup.app.data.sync
 
+import com.iptvup.app.core.diag.DiagLog
 import com.iptvup.app.core.settings.SettingsStore
 import com.iptvup.app.data.local.ChannelDao
 import com.iptvup.app.data.repository.HiddenRepository
@@ -107,6 +108,7 @@ class SyncManager @Inject constructor(
             } catch (exception: CancellationException) {
                 throw exception
             } catch (exception: Exception) {
+                DiagLog.logError("Error inesperado al sincronizar el perfil $profileId", exception)
                 _state.value = SyncState.Error(
                     profileId,
                     exception.message ?: "No se pudo actualizar el perfil"

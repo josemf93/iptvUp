@@ -9,6 +9,7 @@ import android.os.Build
 import android.provider.Settings
 import androidx.core.content.FileProvider
 import com.iptvup.app.BuildConfig
+import com.iptvup.app.core.diag.DiagLog
 import com.iptvup.app.core.settings.SettingsStore
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
@@ -94,6 +95,7 @@ class UpdateManager @Inject constructor(
                 mandatory = manifest.minSupportedVersionCode > BuildConfig.VERSION_CODE
             )
         } catch (exception: Exception) {
+            DiagLog.logError("Error al comprobar actualizaciones", exception)
             _state.value = if (manual) {
                 UpdateState.Error(exception.message ?: "No se pudo comprobar la actualización")
             } else {

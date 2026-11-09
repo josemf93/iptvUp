@@ -13,7 +13,9 @@ import com.iptvup.app.data.epg.SpanishEpgMatcher
 import com.iptvup.app.data.model.IptvProfile
 import com.iptvup.app.data.model.ProfileCredentials
 import com.iptvup.app.data.model.ProfileKind
+import com.iptvup.app.core.diag.DiagLog
 import com.iptvup.app.data.parser.M3uParser
+import com.iptvup.app.data.parser.W3uParser
 import com.iptvup.app.data.parser.XmltvParser
 import com.iptvup.app.data.remote.XtreamClient
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -40,6 +42,7 @@ class PlaylistRepository @Inject constructor(
     private val epgDao: EpgDao,
     private val profileDao: ProfileDao,
     private val m3uParser: M3uParser,
+    private val w3uParser: W3uParser,
     private val xmltvParser: XmltvParser,
     private val xtreamClient: XtreamClient,
     private val okHttp: OkHttpClient,
@@ -57,6 +60,7 @@ class PlaylistRepository @Inject constructor(
         onStatus: (String) -> Unit = {}
     ): Result<Unit> = withContext(Dispatchers.IO) {
         try {
+            DiagLog.log("Sincronizando '${profile.name}' (${profile.kind.wire})")
             onStatus("Actualizando todos los canales...")
             val discoveredEpg = when (profile.kind) {
                 ProfileKind.M3U -> syncM3u(profile, credentials, onStatus)
@@ -69,10 +73,12 @@ class PlaylistRepository @Inject constructor(
             }
             profileDao.updateLastSynced(profile.id, System.currentTimeMillis())
             onStatus("Listo")
+            DiagLog.log("Sincronización de '${profile.name}' terminada")
             Result.success(Unit)
         } catch (exception: CancellationException) {
             throw exception
         } catch (exception: Exception) {
+            DiagLog.logError("Error al sincronizar '${profile.name}'", exception)
             Result.failure(exception)
         }
     }
@@ -90,6 +96,7 @@ class PlaylistRepository @Inject constructor(
         } catch (exception: CancellationException) {
             throw exception
         } catch (exception: Exception) {
+            DiagLog.logError("Error al actualizar la EPG de '${profile.name}'", exception)
             Result.failure(exception)
         }
     }
@@ -119,6 +126,7 @@ class PlaylistRepository @Inject constructor(
             } catch (exception: CancellationException) {
                 throw exception
             } catch (exception: Exception) {
+                DiagLog.logError("EPG del proveedor no disponible", exception)
                 onStatus("EPG no disponible: ${exception.message ?: "error"}")
             }
         } else {
@@ -131,6 +139,7 @@ class PlaylistRepository @Inject constructor(
         } catch (exception: CancellationException) {
             throw exception
         } catch (exception: Exception) {
+            DiagLog.logError("EPG española de respaldo no disponible", exception)
             onStatus("EPG española no disponible: ${exception.message ?: "error"}")
         }
 
@@ -147,6 +156,13 @@ class PlaylistRepository @Inject constructor(
             ?: error("Falta la URL de la lista M3U")
         onStatus("Descargando lista M3U...")
         val file = downloadToCache(url, "m3u_${profile.id}_")
+        if (looksLikeW3u(file)) {
+            return try {
+                syncW3u(profile, url, file, onStatus)
+            } finally {
+                file.delete()
+            }
+        }
         return try {
             if (file.length() == 0L) error("La lista M3U está vacía")
             val fallback = fallbackMap(profile.id)
@@ -173,6 +189,57 @@ class PlaylistRepository @Inject constructor(
         } finally {
             file.delete()
         }
+    }
+
+    private fun looksLikeW3u(file: File): Boolean =
+        maybeGzip(file.inputStream()).bufferedReader().use { reader ->
+            val buffer = CharArray(256)
+            val read = reader.read(buffer)
+            read > 0 && w3uParser.isW3u(String(buffer, 0, read))
+        }
+
+    /** Lee un W3U (índice JSON) siguiendo sus sub-listas. Devuelve null: no trae EPG propia. */
+    private suspend fun syncW3u(
+        profile: IptvProfile,
+        url: String,
+        file: File,
+        onStatus: (String) -> Unit
+    ): String? {
+        onStatus("Leyendo lista W3U...")
+        val text = maybeGzip(file.inputStream()).bufferedReader().use { it.readText() }
+        val fallback = fallbackMap(profile.id)
+        channelDao.deleteByProfile(profile.id)
+        val batch = ArrayList<ChannelEntity>(500)
+        var count = 0
+        val result = w3uParser.parse(
+            rootUrl = url,
+            rootText = text,
+            fetchText = ::fetchUrlText,
+            onStatus = onStatus,
+            onChannel = { parsed ->
+                batch += withFallbackEpg(parsed.toEntity(profile.id), fallback)
+                count++
+                if (batch.size >= 500) {
+                    channelDao.upsertAll(batch)
+                    batch.clear()
+                    onStatus("Canales: $count")
+                }
+            }
+        )
+        if (batch.isNotEmpty()) channelDao.upsertAll(batch)
+        DiagLog.log("W3U: $count canales en ${result.lists} listas (${result.failures} fallos)")
+        if (count == 0) error("La lista W3U no contiene canales reproducibles")
+        onStatus("$count canales")
+        return null
+    }
+
+    private fun fetchUrlText(url: String): String? = try {
+        okHttp.newCall(Request.Builder().url(url).build()).execute().use { response ->
+            if (response.isSuccessful) response.body?.bytes()?.toString(Charsets.UTF_8) else null
+        }
+    } catch (exception: Exception) {
+        DiagLog.logError("No se pudo leer la sub-lista W3U $url", exception)
+        null
     }
 
     private suspend fun syncXtream(

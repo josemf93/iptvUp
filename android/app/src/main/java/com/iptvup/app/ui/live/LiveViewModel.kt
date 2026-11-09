@@ -64,8 +64,19 @@ class LiveViewModel @Inject constructor(
     private val hiddenRepository: HiddenRepository,
     private val groupOrderRepository: GroupOrderRepository,
     private val syncManager: SyncManager,
-    private val okHttp: OkHttpClient
+    private val okHttp: OkHttpClient,
+    private val settings: SettingsStore
 ) : ViewModel() {
+
+    val groupListMode: StateFlow<Boolean> = settings.groupListMode.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.Eagerly,
+        initialValue = false
+    )
+
+    fun setGroupListMode(enabled: Boolean) {
+        viewModelScope.launch { settings.setGroupListMode(enabled) }
+    }
 
     val profileId: String = checkNotNull(savedStateHandle["profileId"])
 
@@ -325,15 +336,23 @@ class LiveViewModel @Inject constructor(
         }
     }
 
-    /** Mueve un grupo justo a la posición de [target] (usado al arrastrar en móvil). */
-    fun moveGroupTo(group: String, target: String) {
-        val base = _orderDraft.value ?: allGroups.value
-        val from = base.indexOf(group)
-        val to = base.indexOf(target)
-        if (from < 0 || to < 0 || from == to) return
-        _orderDraft.value = base.toMutableList().also { list ->
-            list.removeAt(from)
-            list.add(to, group)
+    /**
+     * Guarda el orden de los grupos visibles tras arrastrarlos en móvil. Los grupos ocultos
+     * conservan su posición; los visibles ocupan los huecos que quedan en el nuevo orden.
+     */
+    fun saveVisibleGroupOrder(visibleOrder: List<String>) {
+        val hiddenKeys = hidden.value
+            .filter { it.kind == HiddenRepository.KIND_GROUP }
+            .map { it.itemKey }
+            .toSet()
+        val base = allGroups.value
+        if (visibleOrder.toSet() != base.filter { it !in hiddenKeys }.toSet()) return
+        val pending = ArrayDeque(visibleOrder)
+        val full = base.map { group ->
+            if (group in hiddenKeys) group else pending.removeFirst()
+        }
+        viewModelScope.launch {
+            groupOrderRepository.save(profileId, full)
         }
     }
 

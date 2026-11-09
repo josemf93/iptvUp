@@ -1,5 +1,7 @@
 package com.iptvup.app.data.repository
 
+import com.iptvup.app.core.diag.DiagLog
+
 import com.google.firebase.auth.FirebaseAuth
 import com.iptvup.app.data.local.FavoriteDao
 import com.iptvup.app.data.local.FavoriteEntity
@@ -73,6 +75,6 @@ class FavoritesRepository @Inject constructor(
             } else {
                 remote.addFavorite(uid, profileId, channelKey)
             }
-        }
+        }.onFailure { DiagLog.logError("No se pudo guardar un favorito en la nube", it) }
     }
 }

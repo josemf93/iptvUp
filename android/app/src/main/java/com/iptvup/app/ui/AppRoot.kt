@@ -6,6 +6,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -20,6 +21,7 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
+import com.iptvup.app.core.diag.DiagLog
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.iptvup.app.core.ui.theme.Background
@@ -70,6 +72,9 @@ private fun AuthenticatedNavHost(startProfileId: String?) {
         "profiles"
     }
     val backStackEntry by navController.currentBackStackEntryAsState()
+    LaunchedEffect(backStackEntry?.destination?.route) {
+        backStackEntry?.destination?.route?.let { DiagLog.log("Pantalla: $it") }
+    }
     var showExit by remember { mutableStateOf(false) }
 
     BackHandler(enabled = backStackEntry?.destination?.route == "profiles") {

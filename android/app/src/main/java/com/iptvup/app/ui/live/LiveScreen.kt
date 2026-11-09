@@ -25,6 +25,8 @@ import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material.icons.rounded.StarBorder
+import androidx.compose.material.icons.rounded.GridView
+import androidx.compose.material.icons.rounded.ViewList
 import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
@@ -60,7 +62,6 @@ import com.iptvup.app.core.ui.components.ErrorBanner
 import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.components.GroupGrid
 import com.iptvup.app.core.ui.components.TvIconButton
-import com.iptvup.app.core.ui.components.GroupReorder
 import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.components.GroupVisibilityDialog
 import com.iptvup.app.core.ui.components.TvIconButton
@@ -112,6 +113,7 @@ fun LiveScreen(
     val status by viewModel.status.collectAsStateWithLifecycle()
     val error by viewModel.error.collectAsStateWithLifecycle()
     val ready by viewModel.ready.collectAsStateWithLifecycle()
+    val groupListMode by viewModel.groupListMode.collectAsStateWithLifecycle()
 
     var showGroupsDialog by remember { mutableStateOf(false) }
     var showSearchDialog by remember { mutableStateOf(false) }
@@ -245,6 +247,13 @@ fun LiveScreen(
                             fontWeight = FontWeight.SemiBold,
                             modifier = Modifier.weight(1f)
                         )
+                        TvIconButton(onClick = { viewModel.setGroupListMode(!groupListMode) }) {
+                            Icon(
+                                imageVector = if (groupListMode) Icons.Rounded.GridView else Icons.Rounded.ViewList,
+                                contentDescription = if (groupListMode) "Ver en cuadrícula" else "Ver en lista",
+                                tint = TextSecondary
+                            )
+                        }
                         if (isTv) {
                             TvIconButton(onClick = { showSearchDialog = true }) {
                                 Icon(
@@ -324,12 +333,8 @@ fun LiveScreen(
                             viewModel.setQuery("")
                             viewModel.selectGroup(group)
                         },
-                        reorder = GroupReorder(
-                            onStart = viewModel::beginGroupMove,
-                            onOver = viewModel::moveGroupTo,
-                            onEnd = viewModel::endGroupMove,
-                            onCancel = viewModel::cancelGroupMove
-                        )
+                        listMode = groupListMode,
+                        onReorder = if (query.isBlank()) viewModel::saveVisibleGroupOrder else null
                     )
                 }
             } else if (!channelsLoaded) {

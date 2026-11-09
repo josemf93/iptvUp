@@ -7,13 +7,16 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -42,12 +45,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import com.iptvup.app.core.ui.theme.Primary
@@ -56,225 +62,248 @@ import com.iptvup.app.core.ui.theme.TextSecondary
 import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
 
-/** Acciones de reordenado por arrastre. [onOver] se llama cuando el dedo entra en otro grupo. */
-data class GroupReorder(
-    val onStart: () -> Unit,
-    val onOver: (dragged: String, target: String) -> Unit,
-    val onEnd: () -> Unit,
-    val onCancel: () -> Unit
-)
-
 private const val EDGE_PX = 140f
-private const val MAX_AUTOSCROLL_STEP_PX = 7f
+private const val MAX_AUTOSCROLL_STEP_PX = 14f
 
+/**
+ * Lista de grupos. Con [onReorder] activo, mantener pulsado un grupo y arrastrarlo lo reordena:
+ * la tarjeta sigue al dedo en una capa propia, la lista hace scroll en los bordes y el nuevo
+ * orden se entrega al soltar. El orden de arrastre vive aquí, de forma síncrona, para que las
+ * demás tarjetas se reacomoden sin retraso.
+ */
 @Composable
 fun GroupGrid(
     groups: List<String>,
     counts: Map<String, Int>,
     minCardWidth: Dp,
     onSelect: (String) -> Unit,
-    reorder: GroupReorder? = null
+    listMode: Boolean = false,
+    onReorder: ((List<String>) -> Unit)? = null
 ) {
     val gridState = rememberLazyGridState()
-    val currentReorder by rememberUpdatedState(reorder)
-    var dragging by remember { mutableStateOf<String?>(null) }
+    val density = LocalDensity.current
+    val currentGroups by rememberUpdatedState(groups)
+    val currentOnReorder by rememberUpdatedState(onReorder)
+    var order by remember { mutableStateOf(groups) }
+    var dragKey by remember { mutableStateOf<String?>(null) }
     var fingerPos by remember { mutableStateOf(Offset.Zero) }
-    var dragOffset by remember { mutableStateOf(Offset.Zero) }
-    var blockedTarget by remember { mutableStateOf<String?>(null) }
+    var grabOffset by remember { mutableStateOf(Offset.Zero) }
+    var dragSize by remember { mutableStateOf(IntSize.Zero) }
 
-    /** Posición del dedo limitada al bloque de grupos, para que el destino no se pierda fuera de la lista. */
-    fun pointerInViewport(): Offset {
-        val info = gridState.layoutInfo
-        val maxX = (info.viewportSize.width - 1).coerceAtLeast(1).toFloat()
-        val maxY = (info.viewportSize.height - 1).coerceAtLeast(1).toFloat()
-        return Offset(
-            fingerPos.x.coerceIn(0f, maxX),
-            fingerPos.y.coerceIn(0f, maxY)
-        )
+    LaunchedEffect(groups) {
+        if (dragKey == null) order = groups
     }
 
-    /** Mantiene la tarjeta arrastrada dentro del bloque de grupos, sin invadir cabecera ni barra inferior. */
-    fun clampDraggedCard(dragged: String) {
-        val info = gridState.layoutInfo
-        val item = info.visibleItemsInfo.firstOrNull { it.key == dragged } ?: return
-        val viewportHeight = info.viewportSize.height.toFloat()
-        val viewportWidth = info.viewportSize.width.toFloat()
-        val top = item.offset.y + dragOffset.y
-        val bottom = top + item.size.height
-        val left = item.offset.x + dragOffset.x
-        val right = left + item.size.width
-        val correctionX = when {
-            left < 0f -> -left
-            right > viewportWidth -> viewportWidth - right
-            else -> 0f
-        }
-        val correctionY = when {
-            top < 0f -> -top
-            bottom > viewportHeight -> viewportHeight - bottom
-            else -> 0f
-        }
-        if (correctionX != 0f || correctionY != 0f) {
-            dragOffset += Offset(correctionX, correctionY)
+    fun overlayTopLeft(): Offset {
+        val viewport = gridState.layoutInfo.viewportSize
+        val maxX = (viewport.width - dragSize.width).coerceAtLeast(0).toFloat()
+        val maxY = (viewport.height - dragSize.height).coerceAtLeast(0).toFloat()
+        val raw = fingerPos - grabOffset
+        return Offset(raw.x.coerceIn(0f, maxX), raw.y.coerceIn(0f, maxY))
+    }
+
+    fun moveIfOverOther(key: String) {
+        val topLeft = overlayTopLeft()
+        val centerX = topLeft.x + dragSize.width / 2f
+        val centerY = topLeft.y + dragSize.height / 2f
+        val target = gridState.layoutInfo.visibleItemsInfo.firstOrNull { item ->
+            val itemKey = item.key as? String ?: return@firstOrNull false
+            // Solo se acepta si la capa ya refleja el orden actual; si no, el dato es antiguo.
+            itemKey != key &&
+                item.index == order.indexOf(itemKey) &&
+                centerX >= item.offset.x && centerX < item.offset.x + item.size.width &&
+                centerY >= item.offset.y && centerY < item.offset.y + item.size.height
+        }?.key as? String ?: return
+        val from = order.indexOf(key)
+        val to = order.indexOf(target)
+        if (from < 0 || to < 0 || from == to) return
+        order = order.toMutableList().apply {
+            removeAt(from)
+            add(to, key)
         }
     }
 
-    fun checkTarget(dragged: String) {
-        val reorderNow = currentReorder ?: return
-        val items = gridState.layoutInfo.visibleItemsInfo
-        val draggedInfo = items.firstOrNull { it.key == dragged } ?: return
-        val pointer = pointerInViewport()
-        val direct = items.firstOrNull { item ->
-            pointer.x >= item.offset.x && pointer.x < item.offset.x + item.size.width &&
-                pointer.y >= item.offset.y && pointer.y < item.offset.y + item.size.height
-        }
-        // Si el dedo está en un hueco o en el borde, se elige la tarjeta más cercana.
-        val over = direct ?: items
-            .filter { it.key != dragged }
-            .minByOrNull { item ->
-                val dx = item.offset.x + item.size.width / 2f - pointer.x
-                val dy = item.offset.y + item.size.height / 2f - pointer.y
-                dx * dx + dy * dy
-            }
-        val target = over?.key as? String
-        if (over == null || target == null || target == dragged) {
-            blockedTarget = null
-            return
-        }
-        // Tras reordenar, la tarjeta arrastrada ocupa el hueco del destino: no volver a intentarlo hasta salir de él.
-        if (target == blockedTarget) return
-        blockedTarget = target
-        clampDraggedCard(dragged)
-        reorderNow.onOver(dragged, target)
-        dragOffset += Offset(
-            (draggedInfo.offset.x - over.offset.x).toFloat(),
-            (draggedInfo.offset.y - over.offset.y).toFloat()
-        )
+    fun endDrag() {
+        if (dragKey == null) return
+        dragKey = null
+        if (order != currentGroups) currentOnReorder?.invoke(order)
     }
 
-    LaunchedEffect(dragging) {
-        val current = dragging ?: return@LaunchedEffect
+    fun cancelDrag() {
+        dragKey = null
+        order = currentGroups
+    }
+
+    LaunchedEffect(dragKey) {
+        val key = dragKey ?: return@LaunchedEffect
         while (true) {
             delay(16)
             val viewport = gridState.layoutInfo.viewportSize.height.toFloat()
-            val y = pointerInViewport().y
+            val y = fingerPos.y.coerceIn(0f, viewport)
             val step = when {
-                y < EDGE_PX -> -((EDGE_PX - y) / 20f).coerceAtMost(MAX_AUTOSCROLL_STEP_PX)
-                y > viewport - EDGE_PX -> ((y - (viewport - EDGE_PX)) / 20f).coerceAtMost(MAX_AUTOSCROLL_STEP_PX)
+                y < EDGE_PX -> -((EDGE_PX - y) / 10f).coerceAtMost(MAX_AUTOSCROLL_STEP_PX)
+                y > viewport - EDGE_PX -> ((y - (viewport - EDGE_PX)) / 10f).coerceAtMost(MAX_AUTOSCROLL_STEP_PX)
                 else -> 0f
             }
             if (step != 0f) {
-                var consumed = 0f
-                gridState.scroll(MutatePriority.Default) {
-                    consumed = scrollBy(step)
-                }
-                dragOffset += Offset(0f, consumed)
-                clampDraggedCard(current)
+                gridState.scroll(MutatePriority.Default) { scrollBy(step) }
             }
-            checkTarget(current)
+            moveIfOverOther(key)
         }
     }
 
-    LazyVerticalGrid(
-        state = gridState,
-        columns = GridCells.Adaptive(minSize = minCardWidth),
-        contentPadding = PaddingValues(20.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-        modifier = Modifier
-            .fillMaxSize()
-            .clipToBounds()
-    ) {
-        items(groups, key = { it }) { group ->
-            val isDragged = dragging == group
-            val dragModifier = if (reorder != null) {
-                Modifier.pointerInput(group) {
-                    detectDragGesturesAfterLongPress(
-                        onDragStart = { offset ->
-                            val item = gridState.layoutInfo.visibleItemsInfo
-                                .firstOrNull { it.key == group }
-                            if (item != null) {
-                                fingerPos = Offset(
-                                    item.offset.x + offset.x,
-                                    item.offset.y + offset.y
-                                )
-                                dragOffset = Offset.Zero
-                                blockedTarget = null
-                                dragging = group
-                                currentReorder?.onStart?.invoke()
-                            }
-                        },
-                        onDrag = { change, amount ->
-                            change.consume()
-                            fingerPos += amount
-                            dragOffset += amount
-                            clampDraggedCard(group)
-                            checkTarget(group)
-                        },
-                        onDragEnd = {
-                            dragging = null
-                            dragOffset = Offset.Zero
-                            blockedTarget = null
-                            currentReorder?.onEnd?.invoke()
-                        },
-                        onDragCancel = {
-                            dragging = null
-                            dragOffset = Offset.Zero
-                            blockedTarget = null
-                            currentReorder?.onCancel?.invoke()
-                        }
-                    )
-                }
-            } else {
-                Modifier
-            }
-            FocusableCard(
-                onClick = { onSelect(group) },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .zIndex(if (isDragged) 1f else 0f)
-                    .then(
-                        if (isDragged) {
-                            Modifier.offset {
-                                IntOffset(dragOffset.x.roundToInt(), dragOffset.y.roundToInt())
-                            }
-                        } else {
-                            Modifier
-                        }
-                    )
-                    .then(dragModifier)
-            ) {
-                Column(modifier = Modifier.padding(18.dp)) {
-                    Box(
-                        modifier = Modifier
-                            .size(52.dp)
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(Primary.copy(alpha = 0.16f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = groupIconFor(group),
-                            contentDescription = null,
-                            tint = Primary
+    Box(modifier = Modifier.fillMaxSize().clipToBounds()) {
+        LazyVerticalGrid(
+            state = gridState,
+            columns = if (listMode) GridCells.Fixed(1) else GridCells.Adaptive(minSize = minCardWidth),
+            contentPadding = PaddingValues(20.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.fillMaxSize()
+        ) {
+            items(order, key = { it }) { group ->
+                val isDragged = dragKey == group
+                val dragModifier = if (onReorder != null) {
+                    Modifier.pointerInput(group) {
+                        detectDragGesturesAfterLongPress(
+                            onDragStart = { offset ->
+                                val item = gridState.layoutInfo.visibleItemsInfo
+                                    .firstOrNull { it.key == group }
+                                if (item != null) {
+                                    dragSize = item.size
+                                    grabOffset = offset
+                                    fingerPos = Offset(item.offset.x.toFloat(), item.offset.y.toFloat()) + offset
+                                    dragKey = group
+                                }
+                            },
+                            onDrag = { change, amount ->
+                                change.consume()
+                                fingerPos += amount
+                            },
+                            onDragEnd = { endDrag() },
+                            onDragCancel = { cancelDrag() }
                         )
                     }
-                    Spacer(Modifier.height(12.dp))
+                } else {
+                    Modifier
+                }
+                GroupCard(
+                    group = group,
+                    count = counts[group] ?: 0,
+                    listMode = listMode,
+                    onClick = { onSelect(group) },
+                    modifier = Modifier
+                        .animateItem()
+                        .graphicsLayer { alpha = if (isDragged) 0f else 1f }
+                        .then(dragModifier)
+                )
+            }
+        }
+
+        dragKey?.let { key ->
+            Box(
+                modifier = Modifier
+                    .zIndex(1f)
+                    .offset {
+                        val topLeft = overlayTopLeft()
+                        IntOffset(topLeft.x.roundToInt(), topLeft.y.roundToInt())
+                    }
+                    .size(
+                        width = with(density) { dragSize.width.toDp() },
+                        height = with(density) { dragSize.height.toDp() }
+                    )
+            ) {
+                GroupCard(
+                    group = key,
+                    count = counts[key] ?: 0,
+                    listMode = listMode,
+                    onClick = {},
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun GroupCard(
+    group: String,
+    count: Int,
+    listMode: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier
+) {
+    if (listMode) {
+        FocusableCard(
+            onClick = onClick,
+            modifier = modifier.fillMaxWidth()
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                GroupIcon(group)
+                Spacer(Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = group,
                         color = TextPrimary,
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
-                        maxLines = 2,
+                        maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
-                    Spacer(Modifier.height(4.dp))
                     Text(
-                        text = "${counts[group] ?: 0} canales",
+                        text = "$count canales",
                         color = TextSecondary,
                         style = MaterialTheme.typography.bodySmall
                     )
                 }
             }
         }
+    } else {
+        FocusableCard(
+            onClick = onClick,
+            modifier = modifier.fillMaxWidth().aspectRatio(1f)
+        ) {
+            Column(modifier = Modifier.fillMaxWidth().padding(14.dp)) {
+                GroupIcon(group)
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    text = group,
+                    color = TextPrimary,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = "$count canales",
+                    color = TextSecondary,
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun GroupIcon(group: String) {
+    Box(
+        modifier = Modifier
+            .size(48.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(Primary.copy(alpha = 0.16f)),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = groupIconFor(group),
+            contentDescription = null,
+            tint = Primary
+        )
     }
 }
 

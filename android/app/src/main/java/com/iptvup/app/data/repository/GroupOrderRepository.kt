@@ -1,5 +1,7 @@
 package com.iptvup.app.data.repository
 
+import com.iptvup.app.core.diag.DiagLog
+
 import com.google.firebase.auth.FirebaseAuth
 import com.iptvup.app.core.settings.SettingsStore
 import com.iptvup.app.data.remote.ProfileRemoteDataSource
@@ -43,6 +45,7 @@ class GroupOrderRepository @Inject constructor(
         settings.setGroupOrder(profileId, groups)
         val uid = auth.currentUser?.uid ?: return
         runCatching { remote.setGroupOrder(uid, profileId, groups) }
+            .onFailure { DiagLog.logError("No se pudo guardar el orden de grupos en la nube", it) }
     }
 
     fun sortGroups(groups: List<String>, order: List<String>): List<String> {

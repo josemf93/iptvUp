@@ -7,14 +7,15 @@ import java.util.Date
 import java.util.Locale
 
 /**
- * Registro del reproductor para ver el diagnóstico desde Ajustes sin logcat.
- * Se guarda en un fichero interno y conserva las últimas [MAX_LINES] líneas entre reinicios.
- * No se borra solo por tiempo: solo al pulsar Borrar en Ajustes o al superar el límite de líneas.
+ * Registro de diagnóstico de toda la app, visible en Ajustes → Diagnóstico.
+ * Se guarda en un fichero interno que sobrevive a los reinicios y conserva las últimas
+ * [MAX_LINES] líneas. No se borra por tiempo: solo con el botón Borrar o al superar el límite.
  */
 object DiagLog {
 
-    private const val MAX_LINES = 500
+    private const val MAX_LINES = 1000
     private const val FILE_NAME = "diagnostico.log"
+    private const val TRACE_LINES = 12
 
     private val lines = ArrayDeque<String>()
     private var file: File? = null
@@ -34,9 +35,21 @@ object DiagLog {
 
     @Synchronized
     fun log(message: String) {
-        lines.addLast("${formatter.format(Date())}  $message")
-        while (lines.size > MAX_LINES) lines.removeFirst()
-        save()
+        val line = "${formatter.format(Date())}  $message"
+        lines.addLast(line)
+        if (lines.size > MAX_LINES) {
+            lines.removeFirst()
+            rewrite()
+        } else {
+            append(line)
+        }
+    }
+
+    /** Registra un error con su tipo, mensaje y las primeras líneas de la traza. */
+    @Synchronized
+    fun logError(message: String, throwable: Throwable) {
+        val trace = throwable.stackTrace.take(TRACE_LINES).joinToString("\n") { "    at $it" }
+        log("$message: ${throwable::class.java.simpleName}: ${throwable.message}\n$trace")
     }
 
     @Synchronized
@@ -48,7 +61,11 @@ object DiagLog {
         file?.delete()
     }
 
-    private fun save() {
+    private fun append(line: String) {
+        runCatching { file?.appendText(line + "\n") }
+    }
+
+    private fun rewrite() {
         runCatching { file?.writeText(lines.joinToString("\n", postfix = "\n")) }
     }
 }

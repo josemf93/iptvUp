@@ -1,5 +1,7 @@
 package com.iptvup.app.data.repository
 
+import com.iptvup.app.core.diag.DiagLog
+
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
 import com.iptvup.app.data.remote.ProfileRemoteDataSource
@@ -39,7 +41,10 @@ class AuthRepository @Inject constructor(
 
     /** Marca la actividad de la cuenta; se llama al abrir la app con sesión iniciada. */
     suspend fun markSeen() {
-        auth.currentUser?.uid?.let { uid -> runCatching { remote.touchLastSeen(uid) } }
+        auth.currentUser?.uid?.let { uid ->
+            runCatching { remote.touchLastSeen(uid) }
+                .onFailure { DiagLog.logError("No se pudo registrar el último acceso", it) }
+        }
     }
 
     suspend fun sendPasswordReset(email: String): Result<Unit> = try {
