@@ -2,17 +2,11 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { AdminShell } from '@/components/AdminShell'
 import { ResetPasswordForm, UserActions } from '@/components/UserAdminForms'
+import { formatDate, latestAccess } from '@/lib/access'
 import { requireAdminPage } from '@/lib/auth'
 import { getAdminAuth, getAdminDb } from '@/lib/firebase-admin'
 
 export const dynamic = 'force-dynamic'
-
-function formatDate(value: string | number | undefined | null): string {
-  if (!value) return '—'
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return '—'
-  return date.toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' })
-}
 
 export default async function UserDetailPage({
   params
@@ -74,7 +68,14 @@ export default async function UserDetailPage({
         <InfoCard label="Alta" value={formatDate(user.metadata.creationTime)} />
         <InfoCard
           label="Último acceso"
-          value={formatDate(user.metadata.lastSignInTime)}
+          value={formatDate(
+            latestAccess(
+              user.metadata.lastSignInTime,
+              typeof userDoc.get('lastSeenAt') === 'number'
+                ? (userDoc.get('lastSeenAt') as number)
+                : null
+            )
+          )}
         />
         <InfoCard
           label="Estado en Firestore"

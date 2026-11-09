@@ -45,6 +45,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -88,7 +89,10 @@ import com.iptvup.app.core.ui.theme.TextPrimary
 import com.iptvup.app.core.ui.theme.TextSecondary
 import com.iptvup.app.core.ui.util.formatTime
 import com.iptvup.app.data.local.EpgProgramEntity
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 private const val PREVIEW_DELAY_MS = 700L
 
@@ -162,7 +166,7 @@ fun LiveTvLayout(
     BackHandler(enabled = moving != null || selectedGroup != null) {
         val movingNow = moving
         if (movingNow != null) {
-            viewModel.endGroupMove()
+            viewModel.cancelGroupMove()
             moving = null
         } else {
             viewModel.focusChannel(null)
@@ -495,40 +499,65 @@ private fun startPreview(player: ExoPlayer, url: String) {
     player.playWhenReady = true
 }
 
+private const val HOLD_TO_MOVE_MS = 1_000L
+
+private class GroupHold {
+    var job: Job? = null
+    var moved = false
+}
+
 /**
- * Teclas de un grupo: OK mantenido activa el modo mover; arriba/abajo lo desplazan
- * y OK de nuevo (al soltar) lo guarda.
+ * Teclas de un grupo: mantener OK un segundo activa el modo mover (no depende del flag de
+ * pulsación larga, que muchos mandos no envían); arriba/abajo lo desplazan y un OK nuevo lo guarda.
  */
 private fun Modifier.groupMoveKeys(
     isMoving: Boolean,
+    hold: GroupHold,
+    scope: CoroutineScope,
     onStartMove: () -> Unit,
     onMove: (Int) -> Unit,
     onEndMove: () -> Unit
 ): Modifier = onPreviewKeyEvent { event ->
     val isCenter = event.key == Key.DirectionCenter || event.key == Key.Enter
+    val isDown = event.type == KeyEventType.KeyDown
+    val isRepeat = event.nativeKeyEvent.repeatCount > 0
     when {
-        isMoving && event.type == KeyEventType.KeyDown && event.key == Key.DirectionUp -> {
+        isMoving && isDown && event.key == Key.DirectionUp -> {
             onMove(-1)
             true
         }
 
-        isMoving && event.type == KeyEventType.KeyDown && event.key == Key.DirectionDown -> {
+        isMoving && isDown && event.key == Key.DirectionDown -> {
             onMove(1)
             true
         }
 
         isMoving && isCenter -> {
-            // Soltar el OK del mantenido no termina el modo mover; solo un OK nuevo lo guarda.
-            if (event.type == KeyEventType.KeyDown && !event.nativeKeyEvent.isLongPress) {
-                onEndMove()
-            }
+            if (isDown && !isRepeat) onEndMove()
+            hold.moved = false
             true
         }
 
-        !isMoving && isCenter && event.type == KeyEventType.KeyDown &&
-            event.nativeKeyEvent.isLongPress -> {
-            onStartMove()
-            true
+        !isMoving && isCenter && isDown -> {
+            if (isRepeat) {
+                hold.moved
+            } else {
+                hold.job?.cancel()
+                hold.job = scope.launch {
+                    delay(HOLD_TO_MOVE_MS)
+                    hold.moved = true
+                    onStartMove()
+                }
+                false
+            }
+        }
+
+        !isMoving && isCenter && event.type == KeyEventType.KeyUp -> {
+            hold.job?.cancel()
+            hold.job = null
+            val consumed = hold.moved
+            hold.moved = false
+            consumed
         }
 
         else -> false
@@ -549,6 +578,8 @@ private fun TvGroupRow(
     val interactionSource = remember { MutableInteractionSource() }
     val focused by interactionSource.collectIsFocusedAsState()
     val shape = RoundedCornerShape(14.dp)
+    val hold = remember { GroupHold() }
+    val scope = rememberCoroutineScope()
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -558,6 +589,8 @@ private fun TvGroupRow(
             .then(if (requester != null) Modifier.focusRequester(requester) else Modifier)
             .groupMoveKeys(
                 isMoving = isMoving,
+                hold = hold,
+                scope = scope,
                 onStartMove = onStartMove,
                 onMove = onMove,
                 onEndMove = onEndMove

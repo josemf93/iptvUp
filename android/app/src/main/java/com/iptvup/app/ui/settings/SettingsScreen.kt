@@ -7,8 +7,14 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.ui.platform.LocalContext
+import com.iptvup.app.core.diag.DiagLog
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -61,6 +67,7 @@ import com.iptvup.app.core.ui.theme.SurfaceElevated
 import com.iptvup.app.core.ui.theme.TextPrimary
 import com.iptvup.app.core.ui.theme.TextSecondary
 import com.iptvup.app.core.ui.util.formatLastSync
+import com.iptvup.app.core.ui.util.isTelevision
 import com.iptvup.app.update.UpdateState
 
 @Composable
@@ -72,6 +79,10 @@ fun SettingsScreen(
     val updateState by viewModel.updateState.collectAsStateWithLifecycle()
     val syncOnOpen by viewModel.syncOnOpen.collectAsStateWithLifecycle()
     var confirmLogout by remember { mutableStateOf(false) }
+    var showDiag by remember { mutableStateOf(false) }
+    var diagText by remember { mutableStateOf("") }
+    val buttonWidth = if (isTelevision()) 0.5f else 1f
+    val context = LocalContext.current
 
     Column(
         modifier = Modifier
@@ -136,7 +147,7 @@ fun SettingsScreen(
         SettingsCard {
             OutlinedButton(
                 onClick = { viewModel.switchProfile(onSwitchProfile) },
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(buttonWidth)
             ) {
                 Icon(Icons.Rounded.SwapHoriz, contentDescription = null)
                 Spacer(Modifier.width(8.dp))
@@ -145,7 +156,7 @@ fun SettingsScreen(
             Spacer(Modifier.height(10.dp))
             OutlinedButton(
                 onClick = { confirmLogout = true },
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(buttonWidth)
             ) {
                 Icon(Icons.Rounded.Logout, contentDescription = null, tint = Danger)
                 Spacer(Modifier.width(8.dp))
@@ -287,7 +298,7 @@ fun SettingsScreen(
                 enabled = updateState !is UpdateState.Checking &&
                     updateState !is UpdateState.Downloading &&
                     updateState !is UpdateState.Installing,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(buttonWidth)
             ) {
                 Icon(Icons.Rounded.Refresh, contentDescription = null)
                 Spacer(Modifier.width(8.dp))
@@ -298,6 +309,27 @@ fun SettingsScreen(
                         "Buscar actualizaciones"
                     }
                 )
+            }
+        }
+
+        Spacer(Modifier.height(16.dp))
+        SectionTitle("Diagnóstico")
+        SettingsCard {
+            Text(
+                text = "Registra qué pasa con el reproductor (errores, reconexiones y cierres). " +
+                    "Si un canal se queda en negro, abre el registro y cópialo.",
+                color = TextSecondary,
+                style = MaterialTheme.typography.bodySmall
+            )
+            Spacer(Modifier.height(10.dp))
+            OutlinedButton(
+                onClick = {
+                    diagText = DiagLog.dump().ifBlank { "Todavía no hay registros." }
+                    showDiag = true
+                },
+                modifier = Modifier.fillMaxWidth(buttonWidth)
+            ) {
+                Text("Ver registro")
             }
         }
 
@@ -328,6 +360,52 @@ fun SettingsScreen(
         }
 
         Spacer(Modifier.height(28.dp))
+    }
+
+    if (showDiag) {
+        AlertDialog(
+            onDismissRequest = { showDiag = false },
+            title = { Text("Registro del reproductor") },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 360.dp)
+                        .verticalScroll(rememberScrollState())
+                ) {
+                    Text(
+                        text = diagText,
+                        color = TextSecondary,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                        clipboard.setPrimaryClip(ClipData.newPlainText("IptvUp diagnóstico", diagText))
+                    }
+                ) {
+                    Text("Copiar")
+                }
+            },
+            dismissButton = {
+                Row {
+                    TextButton(
+                        onClick = {
+                            DiagLog.clear()
+                            diagText = "Registro borrado."
+                        }
+                    ) {
+                        Text("Borrar")
+                    }
+                    TextButton(onClick = { showDiag = false }) {
+                        Text("Cerrar")
+                    }
+                }
+            }
+        )
     }
 
     if (confirmLogout) {

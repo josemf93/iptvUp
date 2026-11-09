@@ -69,7 +69,7 @@ import com.iptvup.app.core.ui.util.formatTime
 import com.iptvup.app.core.ui.util.isTelevision
 import com.iptvup.app.data.local.RecentChannelEntity
 import com.iptvup.app.data.model.IptvProfile
-import com.iptvup.app.data.sports.SportsEventRaw
+import com.iptvup.app.data.sports.SportsEventMatch
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -134,7 +134,8 @@ fun HomeScreen(
         Spacer(Modifier.height(12.dp))
         SportsCard(
             events = sportsEvents,
-            loading = sportsLoading
+            loading = sportsLoading,
+            onPlay = onPlay
         )
 
         if (recent.isNotEmpty()) {
@@ -185,8 +186,9 @@ fun HomeScreen(
 
 @Composable
 private fun SportsCard(
-    events: List<SportsEventRaw>,
-    loading: Boolean
+    events: List<SportsEventMatch>,
+    loading: Boolean,
+    onPlay: (String) -> Unit
 ) {
     val isTv = isTelevision()
     Box(
@@ -238,7 +240,7 @@ private fun SportsCard(
             var selectedSport by rememberSaveable { mutableStateOf(SPORT_TAGS.first().sport) }
             SportTags(selected = selectedSport, onSelect = { selectedSport = it })
             Spacer(Modifier.height(14.dp))
-            val sportEvents = events.filter { it.sport == selectedSport }
+            val sportEvents = events.filter { it.event.sport == selectedSport }
 
             when {
                 loading && events.isEmpty() -> Row(verticalAlignment = Alignment.CenterVertically) {
@@ -256,13 +258,13 @@ private fun SportsCard(
                 }
 
                 sportEvents.isEmpty() -> Text(
-                    text = "No hay partidos de ${selectedSport.lowercase()} para hoy.",
+                    text = "No hay partidos de ${selectedSport.lowercase()} hoy en tus canales.",
                     color = Color.White.copy(alpha = 0.75f),
                     style = MaterialTheme.typography.bodySmall
                 )
 
                 else -> key(selectedSport) {
-                    SportsCarousel(events = sportEvents, isTv = isTv)
+                    SportsCarousel(events = sportEvents, isTv = isTv, onPlay = onPlay)
                 }
             }
         }
@@ -335,8 +337,9 @@ private fun SportTagChip(
 
 @Composable
 private fun SportsCarousel(
-    events: List<SportsEventRaw>,
-    isTv: Boolean
+    events: List<SportsEventMatch>,
+    isTv: Boolean,
+    onPlay: (String) -> Unit
 ) {
     val pagerState = rememberPagerState(pageCount = { events.size })
     val scope = rememberCoroutineScope()
@@ -361,7 +364,7 @@ private fun SportsCarousel(
                 state = pagerState,
                 modifier = Modifier.weight(1f)
             ) { page ->
-                SportsEventPage(event = events[page])
+                SportsEventPage(match = events[page], onPlay = onPlay)
             }
             if (isTv) {
                 TvIconButton(
@@ -402,8 +405,15 @@ private fun SportsCarousel(
 }
 
 @Composable
-private fun SportsEventPage(event: SportsEventRaw) {
-    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 6.dp)) {
+private fun SportsEventPage(match: SportsEventMatch, onPlay: (String) -> Unit) {
+    val event = match.event
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .clickable { onPlay(match.channels.first().id) }
+            .padding(horizontal = 6.dp)
+    ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 text = formatTime(event.startMs),
@@ -443,11 +453,7 @@ private fun SportsEventPage(event: SportsEventRaw) {
             )
             Spacer(Modifier.width(6.dp))
             Text(
-                text = if (event.broadcasters.isEmpty()) {
-                    "Canal no indicado"
-                } else {
-                    event.broadcasters.joinToString(" · ")
-                },
+                text = match.channels.joinToString(" · ") { it.name },
                 color = Primary,
                 style = MaterialTheme.typography.bodySmall,
                 fontWeight = FontWeight.SemiBold,

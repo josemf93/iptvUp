@@ -33,6 +33,8 @@ class MainViewModel @Inject constructor(
             } else {
                 // Sin caché: descarga todo una vez.
                 syncManager.syncIfEmpty(profileId)
+                // Con caché: solo refresca la EPG si tiene más de 24 h.
+                syncManager.refreshEpgIfDue(profileId)
             }
         }
     }

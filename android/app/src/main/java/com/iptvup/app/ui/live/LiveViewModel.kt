@@ -304,12 +304,6 @@ class LiveViewModel @Inject constructor(
         }
     }
 
-    fun saveGroupOrder(groups: List<String>) {
-        viewModelScope.launch {
-            groupOrderRepository.save(profileId, groups)
-        }
-    }
-
     /** Empieza a reordenar: copia el orden actual a un borrador que se guarda al terminar. */
     fun beginGroupMove() {
         if (_orderDraft.value == null) {
@@ -338,6 +332,18 @@ class LiveViewModel @Inject constructor(
         }
     }
 
+    /** Mueve un grupo justo a la posición de [target] (usado al arrastrar en móvil). */
+    fun moveGroupTo(group: String, target: String) {
+        val base = _orderDraft.value ?: allGroups.value
+        val from = base.indexOf(group)
+        val to = base.indexOf(target)
+        if (from < 0 || to < 0 || from == to) return
+        _orderDraft.value = base.toMutableList().also { list ->
+            list.removeAt(from)
+            list.add(to, group)
+        }
+    }
+
     /** Termina de reordenar y guarda el orden en la cuenta. */
     fun endGroupMove() {
         val draft = _orderDraft.value ?: return
@@ -345,6 +351,11 @@ class LiveViewModel @Inject constructor(
             groupOrderRepository.save(profileId, draft)
             _orderDraft.value = null
         }
+    }
+
+    /** Descarta el reordenado en curso y deja el orden anterior. */
+    fun cancelGroupMove() {
+        _orderDraft.value = null
     }
 
     private suspend fun epgFor(channels: List<ChannelEntity>, now: Long): Map<String, EpgEntry> {

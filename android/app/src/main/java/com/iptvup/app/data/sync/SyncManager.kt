@@ -58,6 +58,16 @@ class SyncManager @Inject constructor(
     /** Descarga la EPG ahora, sin tocar los canales. */
     fun refreshEpg(profileId: String) = startSync(profileId, onlyIfEmpty = false, epgOnly = true)
 
+    /** Descarga la EPG solo si nunca se descargó o la última vez fue hace más de 24 h. */
+    fun refreshEpgIfDue(profileId: String) {
+        scope.launch {
+            val last = settings.lastEpgSyncMs(profileId)
+            if (System.currentTimeMillis() - last >= EPG_MAX_AGE_MS) {
+                refreshEpg(profileId)
+            }
+        }
+    }
+
     private fun startSync(profileId: String, onlyIfEmpty: Boolean, epgOnly: Boolean) {
         if (job?.isActive == true && activeProfileId == profileId) return
 

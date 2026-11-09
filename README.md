@@ -11,7 +11,7 @@ Reproductor IPTV privado para **Android** y **Android TV**, con perfiles sincron
 ### App Android / Android TV
 
 - Login con email y contraseña (Firebase Auth).
-- Perfiles IPTV en la nube: **M3U** o **Xtream Codes**.
+- Perfiles IPTV en la nube: **M3U**, **W3U** (formato de WiseIPTV/WisePlay) o **Xtream Codes**.
 - Lista de canales por grupos, búsqueda, favoritos y ocultación de grupos.
 - **Actualización manual**: la lista y la EPG se guardan en caché y solo se actualizan al pulsar el botón de actualizar o la primera vez que no hay canales descargados.
 - **Botón de actualización en Inicio y TV**: descarga todos los canales y la EPG cuando lo pulsas.
@@ -21,7 +21,8 @@ Reproductor IPTV privado para **Android** y **Android TV**, con perfiles sincron
 - **Arranque en el último perfil usado**.
 - **Iconos de perfil personalizables**: toca el avatar de cada lista para elegir entre varios iconos.
 - En **móvil y Android TV**, la pestaña TV muestra primero los grupos como tarjetas con icono; al entrar en un grupo aparece su lista de canales con botón de volver.
-- **Sin actualización automática diaria**: al entrar en un perfil se usa siempre la caché; solo se descarga todo si no hay canales guardados o si pulsas actualizar manualmente.
+- **Canales manuales, EPG diaria**: al entrar en un perfil se usa la caché de canales (solo se descarga todo si no hay canales guardados o si pulsas actualizar). La EPG se comprueba en cada entrada y se actualiza en segundo plano si la última descarga tiene más de 24 horas.
+- **Diagnóstico sin logcat**: Ajustes → Diagnóstico → Ver registro muestra los errores, reconexiones y cierres del reproductor, con botón para copiarlos.
 - **EPG solo de grupos visibles**: solo se descarga la EPG para los canales de grupos visibles. Si el proveedor no trae datos de un canal español, se empareja por nombre con la guía española de epgshare01.online (por ejemplo "ES MOVISTAR ACCION" con "Acción por M+").
 - Reproductor **Media3/ExoPlayer** para HLS y TS.
 - **Guía EPG** (XMLTV) con ahora/después, parrilla temporal en móvil, lista adaptada a TV, buscador de canales y el mismo gestor multi-grupo que TV.

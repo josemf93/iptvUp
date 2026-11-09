@@ -1,45 +1,54 @@
 import Link from 'next/link'
 import { AdminShell } from '@/components/AdminShell'
+import { formatDate, latestAccess } from '@/lib/access'
 import { requireAdminPage } from '@/lib/auth'
 import { getAdminAuth, getAdminDb } from '@/lib/firebase-admin'
 
 export const dynamic = 'force-dynamic'
-
-function formatDate(value: string | number | undefined | null): string {
-  if (!value) return '—'
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return '—'
-  return date.toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' })
-}
 
 export default async function DashboardPage() {
   const admin = await requireAdminPage()
   const list = await getAdminAuth().listUsers(1000)
   const db = getAdminDb()
 
-  const profileCounts = await Promise.all(
-    list.users.map(async (user) => {
-      try {
-        const snapshot = await db
-          .collection('users')
-          .doc(user.uid)
-          .collection('iptvProfiles')
-          .get()
-        return snapshot.size
-      } catch {
-        return 0
-      }
-    })
-  )
+  const [profileCounts, userDocs] = await Promise.all([
+    Promise.all(
+      list.users.map(async (user) => {
+        try {
+          const snapshot = await db
+            .collection('users')
+            .doc(user.uid)
+            .collection('iptvProfiles')
+            .get()
+          return snapshot.size
+        } catch {
+          return 0
+        }
+      })
+    ),
+    db.collection('users').get()
+  ])
+  const lastSeenByUid = new Map<string, number>()
+  userDocs.docs.forEach((doc) => {
+    const seen = doc.get('lastSeenAt')
+    if (typeof seen === 'number') lastSeenByUid.set(doc.id, seen)
+  })
+
   const profileCount = profileCounts.reduce((total, count) => total + count, 0)
   const activeCount = list.users.filter((user) => !user.disabled).length
   const disabledCount = list.users.length - activeCount
-  const recent = [...list.users]
-    .filter((user) => user.metadata.lastSignInTime)
+  const recent = list.users
+    .map((user) => ({
+      user,
+      lastAccess: latestAccess(
+        user.metadata.lastSignInTime,
+        lastSeenByUid.get(user.uid)
+      )
+    }))
+    .filter((entry) => entry.lastAccess)
     .sort(
       (a, b) =>
-        new Date(b.metadata.lastSignInTime ?? 0).getTime() -
-        new Date(a.metadata.lastSignInTime ?? 0).getTime()
+        new Date(b.lastAccess ?? 0).getTime() - new Date(a.lastAccess ?? 0).getTime()
     )
     .slice(0, 5)
 
@@ -80,13 +89,13 @@ export default async function DashboardPage() {
           </p>
         ) : (
           <div className="divide-y divide-white/5">
-            {recent.map((user) => (
+            {recent.map(({ user, lastAccess }) => (
               <div
                 key={user.uid}
                 className="flex flex-wrap items-center justify-between gap-2 px-5 py-3"
               >
-                <div>
-                  <p className="text-sm font-medium">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium">
                     {user.email ?? user.uid}
                   </p>
                   <p className="text-xs text-muted">
@@ -94,7 +103,7 @@ export default async function DashboardPage() {
                   </p>
                 </div>
                 <div className="text-right text-xs text-muted">
-                  <p>{formatDate(user.metadata.lastSignInTime)}</p>
+                  <p>{formatDate(lastAccess)}</p>
                   <p>{user.disabled ? 'Desactivado' : 'Activo'}</p>
                 </div>
               </div>

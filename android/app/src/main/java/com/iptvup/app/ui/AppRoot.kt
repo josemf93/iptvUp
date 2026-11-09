@@ -2,10 +2,15 @@ package com.iptvup.app.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import com.iptvup.app.core.ui.components.ExitAppDialog
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -14,6 +19,7 @@ import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.iptvup.app.core.ui.theme.Background
@@ -62,6 +68,12 @@ private fun AuthenticatedNavHost(startProfileId: String?) {
         "main/$startProfileId"
     } else {
         "profiles"
+    }
+    val backStackEntry by navController.currentBackStackEntryAsState()
+    var showExit by remember { mutableStateOf(false) }
+
+    BackHandler(enabled = backStackEntry?.destination?.route == "profiles") {
+        showExit = true
     }
 
     NavHost(
@@ -133,5 +145,9 @@ private fun AuthenticatedNavHost(startProfileId: String?) {
                 onBack = { navController.popBackStack() }
             )
         }
+    }
+
+    if (showExit) {
+        ExitAppDialog(onDismiss = { showExit = false })
     }
 }

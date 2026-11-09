@@ -37,6 +37,11 @@ class AuthRepository @Inject constructor(
         Result.failure(exception)
     }
 
+    /** Marca la actividad de la cuenta; se llama al abrir la app con sesión iniciada. */
+    suspend fun markSeen() {
+        auth.currentUser?.uid?.let { uid -> runCatching { remote.touchLastSeen(uid) } }
+    }
+
     suspend fun sendPasswordReset(email: String): Result<Unit> = try {
         auth.sendPasswordResetEmail(email.trim()).await()
         Result.success(Unit)

@@ -33,8 +33,11 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.border
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -124,6 +127,7 @@ import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.data.identity.ChannelQuality
 import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.util.formatTime
+import com.iptvup.app.core.diag.DiagLog
 import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.util.progressFraction
 import kotlinx.coroutines.delay
@@ -165,6 +169,7 @@ fun PlayerScreen(
     val pipMode by PipState.isInPip.collectAsStateWithLifecycle()
     val focusRequester = remember { FocusRequester() }
     val surfaceFocusRequester = remember { FocusRequester() }
+    val currentFocusRequester = remember { FocusRequester() }
     val view = LocalView.current
     val isTv = isTelevision()
 
@@ -175,7 +180,8 @@ fun PlayerScreen(
         audioManager?.getStreamMaxVolume(AudioManager.STREAM_MUSIC) ?: 0
     }
 
-    val player = remember { viewModel.createPlayer(context) }
+    var playerEpoch by remember { mutableIntStateOf(0) }
+    val player = remember(playerEpoch) { viewModel.createPlayer(context) }
 
     val castController = remember(context, isTv) {
         if (isTv) {
@@ -206,10 +212,14 @@ fun PlayerScreen(
 
             override fun onPlaybackStateChanged(playbackState: Int) {
                 buffering = playbackState == Player.STATE_BUFFERING
-                if (playbackState == Player.STATE_READY) autoRetries = 0
+                if (playbackState == Player.STATE_READY) {
+                    autoRetries = 0
+                    DiagLog.log("Reproduciendo")
+                }
             }
 
             override fun onPlayerError(error: PlaybackException) {
+                DiagLog.log("Error ${error.errorCodeName}: ${error.message} (reintentos $autoRetries)")
                 if (autoRetries < STREAM_MAX_AUTO_RETRIES) {
                     autoRetries++
                     reconnectTick++
@@ -222,21 +232,38 @@ fun PlayerScreen(
         onDispose { player.removeListener(listener) }
     }
 
+    val loadCurrentStream: () -> Unit = {
+        channel?.streamUrl?.let { url ->
+            player.setMediaItem(MediaItem.fromUri(url))
+            player.prepare()
+            player.playWhenReady = true
+        }
+    }
+
     LaunchedEffect(channel?.streamUrl) {
-        val url = channel?.streamUrl ?: return@LaunchedEffect
+        if (channel?.streamUrl == null) return@LaunchedEffect
+        DiagLog.log("Canal: ${channel?.name}")
         playerError = null
         autoRetries = 0
-        player.setMediaItem(MediaItem.fromUri(url))
-        player.prepare()
-        player.playWhenReady = true
+        loadCurrentStream()
+    }
+
+    LaunchedEffect(playerEpoch) {
+        if (playerEpoch > 0) loadCurrentStream()
     }
 
     LaunchedEffect(reconnectTick) {
         if (reconnectTick == 0) return@LaunchedEffect
         delay(1_000L * autoRetries)
         if (inBackground) return@LaunchedEffect
-        player.prepare()
-        player.playWhenReady = true
+        DiagLog.log("Reconexión $autoRetries/$STREAM_MAX_AUTO_RETRIES")
+        if (autoRetries >= STREAM_HARD_RESET_AFTER) {
+            DiagLog.log("Reconexión completa: nuevo reproductor y conexiones nuevas")
+            playerEpoch++
+        } else {
+            player.stop()
+            loadCurrentStream()
+        }
     }
 
     LaunchedEffect(buffering, channel?.id) {
@@ -250,8 +277,12 @@ fun PlayerScreen(
         }
     }
 
-    DisposableEffect(Unit) {
-        onDispose { player.release() }
+    DisposableEffect(player) {
+        onDispose {
+            DiagLog.log("Reproductor cerrado")
+            player.stop()
+            player.release()
+        }
     }
 
     DisposableEffect(lifecycleOwner, player) {
@@ -453,6 +484,13 @@ fun PlayerScreen(
                     when {
                         !controlsVisible && !epgExpanded && (isLeft || isRight) -> {
                             viewModel.changeChannel(if (isRight) 1 else -1)
+                            true
+                        }
+
+                        isTv && !controlsVisible && !epgExpanded &&
+                            event.key == Key.DirectionDown -> {
+                            epgExpanded = true
+                            interactionTick++
                             true
                         }
 
@@ -920,7 +958,11 @@ fun PlayerScreen(
                             }
                             Spacer(Modifier.height(4.dp))
                             Text(
-                                text = "Toca para ver la guía completa",
+                                text = if (isTv) {
+                                    "Pulsa botón abajo para ver la guía completa"
+                                } else {
+                                    "Toca para ver la guía completa"
+                                },
                                 color = Accent,
                                 style = MaterialTheme.typography.labelSmall
                             )
@@ -1012,25 +1054,52 @@ fun PlayerScreen(
                             )
                         } else {
                             val nowMs = System.currentTimeMillis()
+                            val epgListState = rememberLazyListState()
+                            val currentIndex = epgPrograms.indexOfFirst {
+                                nowMs >= it.startMs && nowMs < it.endMs
+                            }.coerceAtLeast(0)
+                            LaunchedEffect(currentIndex) {
+                                epgListState.scrollToItem(currentIndex)
+                                if (isTv) runCatching { currentFocusRequester.requestFocus() }
+                            }
                             LazyColumn(
+                                state = epgListState,
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .weight(1f)
                             ) {
-                                items(epgPrograms, key = { it.id }) { program ->
+                                itemsIndexed(epgPrograms, key = { _, program -> program.id }) { index, program ->
                                     val isCurrent = nowMs >= program.startMs &&
                                         nowMs < program.endMs
+                                    var rowFocused by remember { mutableStateOf(false) }
+                                    val rowModifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(
+                                            if (isCurrent) {
+                                                Accent.copy(alpha = 0.18f)
+                                            } else {
+                                                Color.Transparent
+                                            }
+                                        )
+                                        .then(
+                                            if (isTv && rowFocused) {
+                                                Modifier.border(2.dp, Primary, RoundedCornerShape(10.dp))
+                                            } else {
+                                                Modifier
+                                            }
+                                        )
                                     Column(
                                         modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clip(RoundedCornerShape(10.dp))
-                                            .background(
-                                                if (isCurrent) {
-                                                    Accent.copy(alpha = 0.18f)
+                                            .then(
+                                                if (isTv && index == currentIndex) {
+                                                    Modifier.focusRequester(currentFocusRequester)
                                                 } else {
-                                                    Color.Transparent
+                                                    Modifier
                                                 }
                                             )
+                                            .onFocusChanged { rowFocused = it.isFocused }
+                                            .then(rowModifier)
                                             .clickable { }
                                             .padding(horizontal = 10.dp, vertical = 8.dp)
                                     ) {

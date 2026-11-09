@@ -137,7 +137,7 @@ fun AddProfileScreen(
                             viewModel.kind = ProfileKind.M3U
                             viewModel.clearError()
                         },
-                        label = { Text("Lista M3U") }
+                        label = { Text("Lista M3U / W3U") }
                     )
                     FilterChip(
                         selected = viewModel.kind == ProfileKind.XTREAM,
@@ -158,8 +158,8 @@ fun AddProfileScreen(
                             viewModel.clearError()
                         },
                         modifier = Modifier.fillMaxWidth(),
-                        label = { Text("URL de la lista M3U") },
-                        placeholder = { Text("https://.../lista.m3u") },
+                        label = { Text("URL de la lista (M3U o W3U)") },
+                        placeholder = { Text("https://.../lista.w3u") },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(
                             keyboardType = KeyboardType.Uri,

@@ -119,7 +119,7 @@ class AddProfileViewModel @Inject constructor(
     private fun validate(): String? {
         if (name.isBlank()) return "Ponle un nombre al perfil"
         if (kind == ProfileKind.M3U) {
-            if (m3uUrl.isBlank()) return "Introduce la URL de la lista M3U"
+            if (m3uUrl.isBlank()) return "Introduce la URL de la lista M3U o W3U"
             if (!m3uUrl.trim().startsWith("http://") &&
                 !m3uUrl.trim().startsWith("https://")
             ) {

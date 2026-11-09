@@ -58,7 +58,9 @@ class M3uParser @Inject constructor() {
                     val attrs = pendingAttrs
                     val name = pendingName
                     if (attrs != null && name != null) {
-                        val url = trimmed
+                        // Las listas W3U (formato de WiseIPTV/WisePlay) son M3U compatibles; algunas añaden
+                        // cabeceras tras "|" en la URL, que no hacen falta para reproducir.
+                        val url = trimmed.substringBefore('|').trim()
                         val group = (currentGroup ?: attrs["group-title"])
                             .orEmpty()
                             .ifBlank { "Sin grupo" }

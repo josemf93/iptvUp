@@ -127,15 +127,6 @@ fun EpgScreen(
                         style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.Bold
                     )
-                    Text(
-                        text = when {
-                            !ready -> "Cargando..."
-                            showingGroupBrowser -> "${groups.size} grupos · ${ui.channels.size} canales"
-                            else -> "${ui.channels.size} canales"
-                        },
-                        color = TextSecondary,
-                        style = MaterialTheme.typography.bodySmall
-                    )
                 }
                 if (syncing) {
                     CircularProgressIndicator(
@@ -519,6 +510,7 @@ private fun EpgTimeline(
                                         hourWidth * ((end - start).toFloat() / 3_600_000f)
                                         ).coerceAtLeast(22.dp)
                                     val isCurrent = program.startMs <= now && program.endMs > now
+                                    var cellFocused by remember { mutableStateOf(false) }
                                     Box(
                                         modifier = Modifier
                                             .offset(x = offset)
@@ -533,6 +525,14 @@ private fun EpgTimeline(
                                                     SurfaceElevated
                                                 }
                                             )
+                                            .then(
+                                                if (isTelevision() && cellFocused) {
+                                                    Modifier.border(2.dp, Primary, RoundedCornerShape(8.dp))
+                                                } else {
+                                                    Modifier
+                                                }
+                                            )
+                                            .onFocusChanged { cellFocused = it.isFocused }
                                             .clickable { onPlay(item.channel.id) }
                                             .padding(horizontal = 6.dp, vertical = 6.dp)
                                     ) {

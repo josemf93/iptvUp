@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -37,6 +38,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.iptvup.app.core.ui.components.BrandLogo
+import com.iptvup.app.core.ui.components.ExitAppDialog
 import com.iptvup.app.core.ui.theme.Background
 import com.iptvup.app.core.ui.theme.Primary
 import com.iptvup.app.core.ui.theme.SurfaceDark
@@ -71,9 +73,18 @@ fun MainScreen(
     val television = isTelevision()
     var tabName by rememberSaveable { mutableStateOf(MainTab.HOME.name) }
     val tab = MainTab.valueOf(tabName)
+    var showExit by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         viewModel.checkUpdates(manual = false)
+    }
+
+    BackHandler {
+        if (tab == MainTab.HOME) {
+            showExit = true
+        } else {
+            tabName = MainTab.HOME.name
+        }
     }
 
     val content: @Composable () -> Unit = {
@@ -166,4 +177,8 @@ fun MainScreen(
         onSkip = viewModel::skipUpdate,
         onDismiss = viewModel::dismissUpdate
     )
+
+    if (showExit) {
+        ExitAppDialog(onDismiss = { showExit = false })
+    }
 }

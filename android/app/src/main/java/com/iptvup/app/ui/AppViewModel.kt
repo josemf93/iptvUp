@@ -45,6 +45,7 @@ class AppViewModel @Inject constructor(
                 if (currentUser == null) {
                     _startState.value = AppStartState.Ready(null)
                 } else {
+                    launch { authRepository.markSeen() }
                     _startState.value = AppStartState.Loading
                     val activeId = settings.getActiveProfileId()
                     val localProfile = activeId?.let { profileRepository.getById(it) }

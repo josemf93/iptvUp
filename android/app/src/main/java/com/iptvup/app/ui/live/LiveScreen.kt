@@ -25,7 +25,6 @@ import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material.icons.rounded.StarBorder
-import androidx.compose.material.icons.rounded.SwapVert
 import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
@@ -61,7 +60,7 @@ import com.iptvup.app.core.ui.components.ErrorBanner
 import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.components.GroupGrid
 import com.iptvup.app.core.ui.components.TvIconButton
-import com.iptvup.app.core.ui.components.GroupOrderDialog
+import com.iptvup.app.core.ui.components.GroupReorder
 import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.components.GroupVisibilityDialog
 import com.iptvup.app.core.ui.components.TvIconButton
@@ -116,7 +115,6 @@ fun LiveScreen(
 
     var showGroupsDialog by remember { mutableStateOf(false) }
     var showSearchDialog by remember { mutableStateOf(false) }
-    var showOrderDialog by remember { mutableStateOf(false) }
     var confirmRefresh by remember { mutableStateOf(false) }
     val isTv = isTelevision()
 
@@ -247,13 +245,6 @@ fun LiveScreen(
                             fontWeight = FontWeight.SemiBold,
                             modifier = Modifier.weight(1f)
                         )
-                        TvIconButton(onClick = { showOrderDialog = true }) {
-                            Icon(
-                                imageVector = Icons.Rounded.SwapVert,
-                                contentDescription = "Ordenar grupos",
-                                tint = TextSecondary
-                            )
-                        }
                         if (isTv) {
                             TvIconButton(onClick = { showSearchDialog = true }) {
                                 Icon(
@@ -333,7 +324,12 @@ fun LiveScreen(
                             viewModel.setQuery("")
                             viewModel.selectGroup(group)
                         },
-                        onLongClick = { showOrderDialog = true }
+                        reorder = GroupReorder(
+                            onStart = viewModel::beginGroupMove,
+                            onOver = viewModel::moveGroupTo,
+                            onEnd = viewModel::endGroupMove,
+                            onCancel = viewModel::cancelGroupMove
+                        )
                     )
                 }
             } else if (!channelsLoaded) {
@@ -425,14 +421,6 @@ fun LiveScreen(
                     Text("No")
                 }
             }
-        )
-    }
-
-    if (showOrderDialog) {
-        GroupOrderDialog(
-            groups = allGroups,
-            onSave = viewModel::saveGroupOrder,
-            onDismiss = { showOrderDialog = false }
         )
     }
 }

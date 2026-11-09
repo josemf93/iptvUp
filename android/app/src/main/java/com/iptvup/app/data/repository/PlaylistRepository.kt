@@ -109,7 +109,6 @@ class PlaylistRepository @Inject constructor(
                 null
             }
 
-        var epgOk = false
         if (epgUrl != null) {
             if (!discoveredEpg.isNullOrBlank()) {
                 profileDao.updateEpgUrl(profile.id, discoveredEpg)
@@ -117,7 +116,6 @@ class PlaylistRepository @Inject constructor(
             epgDao.deleteByProfile(profile.id)
             try {
                 syncEpg(profile, epgUrl, onStatus)
-                epgOk = true
             } catch (exception: CancellationException) {
                 throw exception
             } catch (exception: Exception) {
@@ -136,9 +134,8 @@ class PlaylistRepository @Inject constructor(
             onStatus("EPG española no disponible: ${exception.message ?: "error"}")
         }
 
-        if (epgOk) {
-            settings.setLastEpgSync(profile.id, System.currentTimeMillis())
-        }
+        // Se marca aunque falle el proveedor para no reintentar en cada entrada; el refresco manual sigue disponible.
+        settings.setLastEpgSync(profile.id, System.currentTimeMillis())
     }
 
     private suspend fun syncM3u(
