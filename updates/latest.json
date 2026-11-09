@@ -1,8 +1,8 @@
 {
-  "versionCode": 20,
-  "versionName": "0.9.5",
-  "apkUrl": "https://github.com/josemf93/iptvUp/releases/download/v0.9.5/IPTVUp-v0.9.5.apk",
-  "sha256": "cfce1aadafac87ff61aa0ff04dc81f3ad491582b2657c1b28c89a45dc08034f5",
+  "versionCode": 21,
+  "versionName": "0.9.6",
+  "apkUrl": "https://github.com/josemf93/iptvUp/releases/download/v0.9.6/IPTVUp-v0.9.6.apk",
+  "sha256": "69fc4993342c620ae7325c3fcfa41797aa2c0d687281afcc4844164104cc106e",
   "minSupportedVersionCode": 1,
-  "notes": "Arrastre de grupos en móvil: scroll más rápido y natural, y la tarjeta queda contenida dentro del bloque de grupos sin desaparecer en los bordes. Grupos visibles: ahora se guardan con Guardar y se descartan con Cancelar, tanto en móvil como en TV."
+  "notes": "Arrastre de grupos en móvil reescrito: la tarjeta sigue al dedo sin salirse del bloque, scroll en los bordes más rápido y reordenado fluido. Vista de grupos en cuadrícula o lista. Con el buscador activo no se puede reordenar. Listas W3U: ahora se leen los canales de todas las sub-listas. Registro de diagnóstico ampliado a toda la app. Cast: avisa si la TV no puede reproducir y sigue en el móvil."
 }
