@@ -1,8 +1,8 @@
 {
-  "versionCode": 19,
-  "versionName": "0.9.4",
-  "apkUrl": "https://github.com/josemf93/iptvUp/releases/download/v0.9.4/IPTVUp-v0.9.4.apk",
-  "sha256": "8084ada284d879fb97f4e8e426250253b6ff4e6d624e113b90384021acd29c64",
+  "versionCode": 20,
+  "versionName": "0.9.5",
+  "apkUrl": "https://github.com/josemf93/iptvUp/releases/download/v0.9.5/IPTVUp-v0.9.5.apk",
+  "sha256": "cfce1aadafac87ff61aa0ff04dc81f3ad491582b2657c1b28c89a45dc08034f5",
   "minSupportedVersionCode": 1,
-  "notes": "TV: el desplazamiento al mover grupos va más rápido. Ajustes: sin subtítulo bajo el título. Calidad RAW tratada como SD. Eventos deportivos: la tarjeta muestra la fecha de hoy en lugar de los deportes."
+  "notes": "Arrastre de grupos en móvil: scroll más rápido y natural, y la tarjeta queda contenida dentro del bloque de grupos sin desaparecer en los bordes. Grupos visibles: ahora se guardan con Guardar y se descartan con Cancelar, tanto en móvil como en TV."
 }
