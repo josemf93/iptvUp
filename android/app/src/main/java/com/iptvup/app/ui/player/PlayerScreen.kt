@@ -128,6 +128,7 @@ import com.iptvup.app.data.identity.ChannelQuality
 import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.util.formatTime
 import com.iptvup.app.core.diag.DiagLog
+import com.iptvup.app.core.stream.ExternalStreams
 import com.iptvup.app.core.ui.components.TvIconButton
 import com.iptvup.app.core.ui.util.progressFraction
 import kotlinx.coroutines.delay
@@ -165,6 +166,7 @@ fun PlayerScreen(
     var inBackground by remember { mutableStateOf(false) }
     var topBarPx by remember { mutableFloatStateOf(0f) }
     var bottomBarPx by remember { mutableFloatStateOf(0f) }
+    var castActive by remember { mutableStateOf(false) }
     val lifecycleOwner = LocalLifecycleOwner.current
     val pipMode by PipState.isInPip.collectAsStateWithLifecycle()
     val focusRequester = remember { FocusRequester() }
@@ -236,12 +238,16 @@ fun PlayerScreen(
         channel?.streamUrl?.let { url ->
             player.setMediaItem(MediaItem.fromUri(url))
             player.prepare()
-            player.playWhenReady = true
+            player.playWhenReady = !castActive
         }
     }
 
     LaunchedEffect(channel?.streamUrl) {
-        if (channel?.streamUrl == null) return@LaunchedEffect
+        val url = channel?.streamUrl ?: return@LaunchedEffect
+        if (ExternalStreams.isExternal(url)) {
+            ExternalStreams.open(context, url)
+            return@LaunchedEffect
+        }
         DiagLog.log("Canal: ${channel?.name}")
         playerError = null
         autoRetries = 0
@@ -316,12 +322,16 @@ fun PlayerScreen(
     DisposableEffect(castController, player) {
         castController?.attach(
             onStarted = {
+                castActive = true
+                player.playWhenReady = false
                 if (player.isPlaying) player.pause()
             },
             onEnded = {
+                castActive = false
                 runCatching { player.play() }
             },
             onError = {
+                castActive = false
                 runCatching { player.play() }
             }
         )
@@ -428,6 +438,7 @@ fun PlayerScreen(
     }
 
     LaunchedEffect(channel?.id, isPlaying, userPaused, inBackground, canFallback, playerError) {
+        if (channel?.streamUrl?.let(ExternalStreams::isExternal) == true) return@LaunchedEffect
         if (isPlaying || userPaused || inBackground) {
             showConnecting = false
             connectionCountdown = 0
@@ -472,6 +483,16 @@ fun PlayerScreen(
         } else {
             onBack()
         }
+    }
+
+    val externalUrl = channel?.streamUrl?.takeIf { ExternalStreams.isExternal(it) }
+    if (externalUrl != null) {
+        ExternalStreamPanel(
+            name = channel?.name.orEmpty(),
+            onOpen = { ExternalStreams.open(context, externalUrl) },
+            onBack = onBack
+        )
+        return
     }
 
     Box(

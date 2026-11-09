@@ -134,7 +134,8 @@ class CastController(private val context: Context) {
             .setContentType(currentContentType)
             .setMetadata(metadata)
             .build()
-        DiagLog.log("Chromecast: cargando '$currentTitle' (${currentContentType}, host ${Uri.parse(url).host})")
+        val uri = Uri.parse(url)
+        DiagLog.log("Chromecast: cargando '$currentTitle' ($currentContentType, ${uri.scheme}://${uri.host})")
         client.load(mediaInfo).setResultCallback { result ->
             if (!result.status.isSuccess) {
                 reportError("la TV rechazó la carga (código ${result.status.statusCode})")

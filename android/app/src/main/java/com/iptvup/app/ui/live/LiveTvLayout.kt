@@ -90,6 +90,7 @@ import com.iptvup.app.core.ui.theme.SurfaceDark
 import com.iptvup.app.core.ui.theme.SurfaceElevated
 import com.iptvup.app.core.ui.theme.TextPrimary
 import com.iptvup.app.core.ui.theme.TextSecondary
+import com.iptvup.app.core.stream.ExternalStreams
 import com.iptvup.app.core.ui.util.formatTime
 import com.iptvup.app.data.local.EpgProgramEntity
 import kotlinx.coroutines.CoroutineScope
@@ -136,7 +137,7 @@ fun LiveTvLayout(
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val previewPlayer = remember { viewModel.createPreviewPlayer(context) }
-    val previewUrl = focusedChannel?.streamUrl
+    val previewUrl = focusedChannel?.streamUrl?.takeUnless { ExternalStreams.isExternal(it) }
     val currentUrl by rememberUpdatedState(previewUrl)
 
     DisposableEffect(Unit) {
