@@ -1,8 +1,8 @@
 {
-  "versionCode": 18,
-  "versionName": "0.9.3",
-  "apkUrl": "https://github.com/josemf93/iptvUp/releases/download/v0.9.3/IPTVUp-v0.9.3.apk",
-  "sha256": "c85906e137cd3ed4ea12bfc3434c56e8e956c33d90d2c3fe7bcf2364d4e398dd",
+  "versionCode": 19,
+  "versionName": "0.9.4",
+  "apkUrl": "https://github.com/josemf93/iptvUp/releases/download/v0.9.4/IPTVUp-v0.9.4.apk",
+  "sha256": "8084ada284d879fb97f4e8e426250253b6ff4e6d624e113b90384021acd29c64",
   "minSupportedVersionCode": 1,
-  "notes": "Ajustes: fechas de la última sync de canales y de EPG. Arrastre de grupos en móvil con desplazamiento automático más lento. Registro de diagnóstico guardado entre reinicios. Detección de calidad HD/FHD más tolerante en nombres de canal."
+  "notes": "TV: el desplazamiento al mover grupos va más rápido. Ajustes: sin subtítulo bajo el título. Calidad RAW tratada como SD. Eventos deportivos: la tarjeta muestra la fecha de hoy en lugar de los deportes."
 }
