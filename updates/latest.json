@@ -1,8 +1,8 @@
 {
-  "versionCode": 22,
-  "versionName": "0.9.7",
-  "apkUrl": "https://github.com/josemf93/iptvUp/releases/download/v0.9.7/IPTVUp-v0.9.7.apk",
-  "sha256": "3c2cdabd2398d71afe5beb6409c9507c9c3e588fb06b46cbac9803f0cd82c0a9",
+  "versionCode": 23,
+  "versionName": "0.9.8",
+  "apkUrl": "https://github.com/josemf93/iptvUp/releases/download/v0.9.8/IPTVUp-v0.9.8.apk",
+  "sha256": "f4a4bc0750b75752d94b779df00b2e0a17fd60d2629001f10aeab40961c4a223",
   "minSupportedVersionCode": 1,
-  "notes": "Listas W3U por categorías (como WisePlay), con las sub-secciones como prefijo del nombre. Canales Ace Stream y de motor local: se abren con otra app (Ace Stream, VLC...). Cast: el móvil ya no reproduce a la vez que la TV y avisa si la TV no puede reproducir el canal. Registro de diagnóstico ampliado a toda la app."
+  "notes": "EPG de respaldo: se guarda en una sola transacción y se lee una vez, así que tarda menos y no satura la TV. La EPG se comprueba al abrir la app, al volver a ella y cada hora, y se actualiza si tiene más de 24 h. El registro muestra cuánto tarda la EPG de respaldo."
 }
