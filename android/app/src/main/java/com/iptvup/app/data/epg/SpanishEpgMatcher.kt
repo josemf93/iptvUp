@@ -34,7 +34,7 @@ object SpanishEpgMatcher {
     fun readIndex(input: InputStream): List<Pair<String, Set<String>>> {
         val factory = SAXParserFactory.newInstance().apply { isNamespaceAware = false }
         val result = ArrayList<Pair<String, Set<String>>>()
-        factory.newSAXParser().parse(input, object : DefaultHandler() {
+        val handler = object : DefaultHandler() {
             private var channelId: String? = null
             private var inName = false
             private val name = StringBuilder()
@@ -55,6 +55,8 @@ object SpanishEpgMatcher {
                         inName = true
                         name.clear()
                     }
+                    // Los canales van antes que los programas: no hace falta leer el resto del fichero.
+                    "programme" -> throw IndexComplete()
                 }
             }
 
@@ -77,9 +79,17 @@ object SpanishEpgMatcher {
                     }
                 }
             }
-        })
+        }
+        try {
+            factory.newSAXParser().parse(input, handler)
+        } catch (exception: Exception) {
+            // Índice completo: el resto del fichero son programas. El parser puede envolver la excepción.
+            if (exception !is IndexComplete && exception.cause !is IndexComplete) throw exception
+        }
         return result
     }
+
+    private class IndexComplete : RuntimeException()
 
     /** Devuelve el id de epgshare que mejor encaja con el nombre del canal, o null. */
     fun match(channelName: String, index: List<Pair<String, Set<String>>>): String? {

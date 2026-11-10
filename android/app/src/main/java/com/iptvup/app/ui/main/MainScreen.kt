@@ -36,6 +36,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.iptvup.app.core.ui.components.BrandLogo
 import com.iptvup.app.core.ui.components.ExitAppDialog
@@ -70,6 +71,10 @@ fun MainScreen(
 ) {
     val profile by viewModel.profile.collectAsStateWithLifecycle()
     val updateState by viewModel.updateState.collectAsStateWithLifecycle()
+    LifecycleResumeEffect(Unit) {
+        viewModel.onResumed()
+        onPauseOrDispose { }
+    }
     val television = isTelevision()
     var tabName by rememberSaveable { mutableStateOf(MainTab.HOME.name) }
     val tab = MainTab.valueOf(tabName)

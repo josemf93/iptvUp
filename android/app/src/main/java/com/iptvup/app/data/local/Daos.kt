@@ -102,6 +102,12 @@ interface ChannelDao {
     @Query("UPDATE channels SET epgChannelId = :epgId WHERE id = :id")
     suspend fun updateEpgChannelId(id: String, epgId: String)
 
+    /** Una sola transacción: cada escritura suelta refresca todas las pantallas que observan canales. */
+    @Transaction
+    suspend fun linkEpgChannels(links: List<Pair<String, String>>) {
+        links.forEach { (id, epgId) -> updateEpgChannelId(id, epgId) }
+    }
+
     @Query(
         "SELECT id, epgChannelId FROM channels WHERE profileId = :profileId " +
             "AND epgChannelId LIKE 'es:%'"

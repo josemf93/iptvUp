@@ -59,23 +59,30 @@ class SyncManager @Inject constructor(
     /** Descarga la EPG ahora, sin tocar los canales. */
     fun refreshEpg(profileId: String) = startSync(profileId, onlyIfEmpty = false, epgOnly = true)
 
-    /** Descarga la EPG solo si nunca se descargó o la última vez fue hace más de 24 h. */
-    fun refreshEpgIfDue(profileId: String) {
-        scope.launch {
-            val last = settings.lastEpgSyncMs(profileId)
-            if (System.currentTimeMillis() - last >= EPG_MAX_AGE_MS) {
-                refreshEpg(profileId)
-            }
-        }
-    }
+    /**
+     * Al abrir la app o volver a ella (y cada hora mientras está abierta): si no hay canales los
+     * descarga, y si hay canales refresca la EPG solo cuando tenga más de 24 h. Si no toca, no hace nada.
+     */
+    fun checkOnOpen(profileId: String) = startSync(profileId, onlyIfEmpty = false, epgOnly = false, openCheck = true)
 
-    private fun startSync(profileId: String, onlyIfEmpty: Boolean, epgOnly: Boolean) {
+    private fun startSync(
+        profileId: String,
+        onlyIfEmpty: Boolean,
+        epgOnly: Boolean,
+        openCheck: Boolean = false
+    ) {
         if (job?.isActive == true && activeProfileId == profileId) return
 
         job?.cancel()
         activeProfileId = profileId
         job = scope.launch {
-            if (onlyIfEmpty && channelDao.count(profileId) > 0) return@launch
+            val hasChannels = channelDao.count(profileId) > 0
+            if (onlyIfEmpty && hasChannels) return@launch
+
+            val epgDue = System.currentTimeMillis() -
+                settings.lastEpgSyncMs(profileId) >= EPG_MAX_AGE_MS
+            val epgOnlyNow = epgOnly || (openCheck && hasChannels)
+            if (openCheck && hasChannels && !epgDue) return@launch
 
             val profile = profileRepository.getById(profileId)
             if (profile == null) {
@@ -90,11 +97,9 @@ class SyncManager @Inject constructor(
                 val onStatus: (String) -> Unit = { status ->
                     _state.value = SyncState.Running(profileId, status)
                 }
-                val result = if (epgOnly) {
+                val result = if (epgOnlyNow) {
                     playlistRepository.refreshEpg(profile, credentials, onStatus)
                 } else {
-                    val epgDue = System.currentTimeMillis() -
-                        settings.lastEpgSyncMs(profileId) >= EPG_MAX_AGE_MS
                     playlistRepository.sync(profile, credentials, epgDue, onStatus)
                 }
                 result.onSuccess {

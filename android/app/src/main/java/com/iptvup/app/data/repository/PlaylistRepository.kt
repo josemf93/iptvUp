@@ -333,6 +333,7 @@ class PlaylistRepository @Inject constructor(
         if (candidates.isEmpty()) return
 
         onStatus("Buscando EPG española de respaldo...")
+        val startedAt = System.currentTimeMillis()
         val file = downloadToCache(SpanishEpgMatcher.URL, "epg_es_${profile.id}_")
         try {
             if (file.length() == 0L) error("La EPG española está vacía")
@@ -355,9 +356,8 @@ class PlaylistRepository @Inject constructor(
                 }
             }
             if (batch.isNotEmpty()) epgDao.upsertAll(batch)
-            matches.forEach { (channel, epgId) ->
-                channelDao.updateEpgChannelId(channel.id, FALLBACK_PREFIX + epgId)
-            }
+            channelDao.linkEpgChannels(matches.map { (channel, epgId) -> channel.id to FALLBACK_PREFIX + epgId })
+            DiagLog.log("EPG de respaldo: ${matches.size} canales emparejados en ${(System.currentTimeMillis() - startedAt) / 1000} s")
             onStatus("EPG española: ${matches.size} canales emparejados")
         } finally {
             file.delete()
