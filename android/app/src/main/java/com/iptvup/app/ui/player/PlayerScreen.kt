@@ -238,7 +238,7 @@ fun PlayerScreen(
         channel?.streamUrl?.let { url ->
             player.setMediaItem(MediaItem.fromUri(url))
             player.prepare()
-            player.playWhenReady = !castActive
+            player.playWhenReady = !castActive && !userPaused
         }
     }
 
@@ -286,8 +286,8 @@ fun PlayerScreen(
     DisposableEffect(player) {
         onDispose {
             DiagLog.log("Reproductor cerrado")
-            player.stop()
-            player.release()
+            runCatching { player.stop() }
+            runCatching { player.release() }
         }
     }
 
@@ -295,20 +295,21 @@ fun PlayerScreen(
         var resumeOnStart = false
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
+                // En segundo plano se libera el reproductor: su decodificador y su conexión son recursos
+                // escasos en TV que stop() no siempre suelta. Al volver se crea uno nuevo.
                 Lifecycle.Event.ON_STOP -> {
                     inBackground = true
                     resumeOnStart = true
-                    player.stop()
+                    DiagLog.log("Segundo plano: reproductor liberado")
+                    runCatching { player.release() }
                 }
 
                 Lifecycle.Event.ON_START -> {
                     if (resumeOnStart) {
                         resumeOnStart = false
                         inBackground = false
-                        if (player.currentMediaItem != null) {
-                            player.prepare()
-                            player.playWhenReady = !userPaused
-                        }
+                        DiagLog.log("Primer plano: reproductor recreado")
+                        playerEpoch++
                     }
                 }
 
@@ -511,8 +512,8 @@ fun PlayerScreen(
                             true
                         }
 
-                        isTv && !controlsVisible && !epgExpanded &&
-                            event.key == Key.DirectionDown -> {
+                        isTv && !epgExpanded && event.key == Key.DirectionDown -> {
+                            controlsVisible = false
                             epgExpanded = true
                             interactionTick++
                             true

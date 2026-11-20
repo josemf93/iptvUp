@@ -136,19 +136,27 @@ fun LiveTvLayout(
 
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
-    val previewPlayer = remember { viewModel.createPreviewPlayer(context) }
+    // La vista previa se libera al salir de primer plano y se recrea al volver (ver ON_START).
+    var previewEpoch by remember { mutableIntStateOf(0) }
+    val previewPlayer = remember(previewEpoch) { viewModel.createPreviewPlayer(context) }
     val previewUrl = focusedChannel?.streamUrl?.takeUnless { ExternalStreams.isExternal(it) }
-    val currentUrl by rememberUpdatedState(previewUrl)
 
-    DisposableEffect(Unit) {
-        onDispose { previewPlayer.release() }
+    DisposableEffect(previewPlayer) {
+        onDispose { runCatching { previewPlayer.release() } }
     }
 
     DisposableEffect(lifecycleOwner, previewPlayer) {
+        var wasStopped = false
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
-                Lifecycle.Event.ON_STOP -> previewPlayer.stop()
-                Lifecycle.Event.ON_START -> currentUrl?.let { url -> startPreview(previewPlayer, url) }
+                Lifecycle.Event.ON_STOP -> {
+                    wasStopped = true
+                    runCatching { previewPlayer.release() }
+                }
+                Lifecycle.Event.ON_START -> if (wasStopped) {
+                    wasStopped = false
+                    previewEpoch++
+                }
                 else -> Unit
             }
         }
@@ -156,7 +164,7 @@ fun LiveTvLayout(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    LaunchedEffect(previewUrl) {
+    LaunchedEffect(previewUrl, previewEpoch) {
         previewPlayer.stop()
         if (previewUrl != null) {
             delay(PREVIEW_DELAY_MS)
